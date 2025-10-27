@@ -1,0 +1,49 @@
+═══════════════════════════════════════════════════════════
+🎉 CONGRATULAZIONI! Il codice è su GitHub! 
+═══════════════════════════════════════════════════════════
+
+📦 Repository: https://github.com/VitaraDragon/vendemmia-meccanizzata
+
+═══════════════════════════════════════════════════════════
+📱 ATTIVA GITHUB PAGES (2 MINUTI)
+═══════════════════════════════════════════════════════════
+
+1️⃣  Vai su: https://github.com/VitaraDragon/vendemmia-meccanizzata
+
+2️⃣  Clicca sulla tab "Settings" (in alto a destra)
+
+3️⃣  Nel menu a sinistra, scorri e clicca su "Pages"
+
+4️⃣  Nella sezione "Source" (fonte):
+    ✅ Seleziona "Deploy from a branch"
+    ✅ Branch: "main"
+    ✅ Folder: "/ (root)"
+    
+5️⃣  Clicca su "Save"
+
+═══════════════════════════════════════════════════════════
+✅ DOPO 2-3 MINUTI LA TUA APP SARÀ ONLINE SU:
+═══════════════════════════════════════════════════════════
+
+🌐 https://vitaradragon.github.io/vendemmia-meccanizzata/
+
+═══════════════════════════════════════════════════════════
+
+💡 NOTA: Usa login.html come prima pagina!
+
+Il link completo sarà:
+https://vitaradragon.github.io/vendemmia-meccanizzata/login.html
+
+═══════════════════════════════════════════════════════════
+🔧 AGGIORNAMENTI FUTURI
+═══════════════════════════════════════════════════════════
+
+Quando modifichi i file sul tuo PC, per aggiornare GitHub:
+
+cd "C:\Users\Pier\Desktop\vendemmia meccanica\nuovo_progetto"
+git add .
+git commit -m "Descrizione modifiche"
+git push
+
+═══════════════════════════════════════════════════════════
+

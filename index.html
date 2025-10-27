@@ -3,15 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calcolatore Compensi Vendemmia Meccanizzata v2.3</title>
-    <!-- Libreria per generazione PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+    <title>Login - Vendemmia Meccanizzata</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #B0E0E6 0%, #228B22 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo {
+            margin-bottom: 30px;
+        }
+
+        .logo img {
+            width: 180px;
+            height: 180px;
+            margin-bottom: 20px;
+        }
+
+        .logo h1 {
+            color: #333333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+        }
+
+        .logo .subtitle {
+            color: #555555;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #2E8B57;
+        }
+
+        .login-btn {
+            background-color: #2E8B57;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin: 20px 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .login-btn:hover {
+            background-color: #256E4A;
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .register-link {
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .register-link a {
+            color: #2E8B57;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            margin: 10px 0;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #8B4513;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <img src="icons/icon-512x512.png" alt="GFV Logo">
+            <h1>GFV</h1>
+            <div class="subtitle">Global Farm View</div>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required placeholder="Inserisci la tua email">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="Inserisci la tua password">
+            </div>
+
+            <button type="submit" class="login-btn" id="login-btn">
+                Accedi
+            </button>
+
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <p>Accesso in corso...</p>
+            </div>
+        </form>
+
+        <div class="register-link">
+            <p>Non hai un account? <a href="#" onclick="showRegisterForm()">Registrati</a></p>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getFirestore, collection, doc, addDoc, updateDoc, getDoc, onSnapshot, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -26,2061 +218,203 @@
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Make Firebase available globally
-        window.firebaseApp = app;
-        window.firebaseDb = db;
-        window.firebaseAuth = auth;
+        // DOM elements
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const loadingDiv = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
 
-        // Firebase functions
-        window.firebaseFunctions = {
-            // Get tariffe from Firebase
-            async getTariffe() {
-                try {
-                    const tariffeRef = doc(db, 'tariffe', 'current');
-                    const tariffeSnap = await getDoc(tariffeRef);
-                    if (tariffeSnap.exists()) {
-                        return tariffeSnap.data();
-                    }
-                    return null;
-                } catch (error) {
-                    console.error('Error getting tariffe:', error);
-                    return null;
-                }
-            },
+        // Utility functions
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
 
-            // Save tariffe to Firebase
-            async saveTariffe(tariffeData) {
-                try {
-                    const tariffeRef = doc(db, 'tariffe', 'current');
-                    await updateDoc(tariffeRef, {
-                        ...tariffeData,
-                        updatedAt: new Date()
-                    });
-                    console.log('Tariffe saved to Firebase');
-                } catch (error) {
-                    console.error('Error saving tariffe:', error);
-                }
-            },
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
 
-            // Get clients from Firebase
-            async getClients() {
-                try {
-                    const querySnapshot = await getDocs(query(collection(db, 'clients'), orderBy('nome')));
-                    const clients = [];
-                    querySnapshot.forEach((doc) => {
-                        clients.push({ id: doc.id, ...doc.data() });
-                    });
-                    return clients;
-                } catch (error) {
-                    console.error('Error getting clients:', error);
-                    return [];
-                }
-            },
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
 
-            // Save calculation to Firebase
-            async saveCalculation(calculationData) {
-                try {
-                    await addDoc(collection(db, 'calcoli'), {
-                        ...calculationData,
-                        createdAt: new Date()
-                    });
-                    console.log('Calculation saved to Firebase');
-                } catch (error) {
-                    console.error('Error saving calculation:', error);
-                }
-            },
-
-            // Listen to tariffe changes
-            listenToTariffe(callback) {
-                const tariffeRef = doc(db, 'tariffe', 'current');
-                return onSnapshot(tariffeRef, (doc) => {
-                    if (doc.exists()) {
-                        callback(doc.data());
-                    }
-                });
+        function setLoading(loading) {
+            if (loading) {
+                loginBtn.disabled = true;
+                loadingDiv.style.display = 'block';
+                loginBtn.textContent = 'Accesso in corso...';
+            } else {
+                loginBtn.disabled = false;
+                loadingDiv.style.display = 'none';
+                loginBtn.textContent = 'Accedi';
             }
-        };
+        }
 
-        // Initialize authentication (no redirect)
+        // Login function
+        async function login(email, password) {
+            try {
+                setLoading(true);
+                hideMessages();
+                
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                console.log('Login successful:', userCredential.user);
+                
+                showSuccess('Accesso riuscito! Reindirizzamento...');
+                
+                // Redirect to home after successful login
+                setTimeout(() => {
+                    window.location.href = 'home.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                setLoading(false);
+                
+                let errorMsg = 'Errore durante l\'accesso';
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMsg = 'Utente non trovato';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMsg = 'Password errata';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMsg = 'Email non valida';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMsg = 'Account disabilitato';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMsg = 'Troppi tentativi. Riprova più tardi';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+                
+                showError(errorMsg);
+            }
+        }
+
+        // Register function
+        async function register(email, password) {
+            try {
+                setLoading(true);
+                hideMessages();
+                
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                console.log('Registration successful:', userCredential.user);
+                
+                showSuccess('Registrazione completata! Accesso automatico...');
+                
+                // Auto-login after registration
+                setTimeout(() => {
+                    window.location.href = 'home.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Registration error:', error);
+                setLoading(false);
+                
+                let errorMsg = 'Errore durante la registrazione';
+                switch (error.code) {
+                    case 'auth/email-already-in-use':
+                        errorMsg = 'Email già in uso';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMsg = 'Email non valida';
+                        break;
+                    case 'auth/weak-password':
+                        errorMsg = 'Password troppo debole (minimo 6 caratteri)';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+                
+                showError(errorMsg);
+            }
+        }
+
+        // Form submission
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            
+            if (!email || !password) {
+                showError('Inserisci email e password');
+                return;
+            }
+            
+            await login(email, password);
+        });
+
+        // Register form (hidden by default)
+        function showRegisterForm() {
+            const loginBtn = document.getElementById('login-btn');
+            const registerLink = document.querySelector('.register-link p');
+            
+            if (loginBtn.textContent === 'Accedi') {
+                // Switch to register mode
+                loginBtn.textContent = 'Registrati';
+                registerLink.innerHTML = 'Hai già un account? <a href="#" onclick="showRegisterForm()">Accedi</a>';
+                
+                // Change form action
+                loginForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value;
+                    
+                    if (!email || !password) {
+                        showError('Inserisci email e password');
+                        return;
+                    }
+                    
+                    await register(email, password);
+                };
+            } else {
+                // Switch back to login mode
+                loginBtn.textContent = 'Accedi';
+                registerLink.innerHTML = 'Non hai un account? <a href="#" onclick="showRegisterForm()">Registrati</a>';
+                
+                // Reset form action
+                loginForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value;
+                    
+                    if (!email || !password) {
+                        showError('Inserisci email e password');
+                        return;
+                    }
+                    
+                    await login(email, password);
+                };
+            }
+        }
+
+        // Make showRegisterForm globally accessible
+        window.showRegisterForm = showRegisterForm;
+
+        // Check if user is already logged in
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                console.log('User authenticated:', user.uid);
-            } else {
-                console.log('No authentication - using database only');
+                console.log('User already logged in:', user.email);
+                // Redirect to home if already logged in
+                window.location.href = 'home.html';
             }
         });
 
-        console.log('Firebase initialized successfully');
-    </script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(180deg, #B0E0E6 0%, #228B22 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(180deg, #2E8B57 0%, #256E4A 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-            position: relative;
-        }
-
-        .nav-back {
-            position: absolute;
-            left: 30px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 10;
-            cursor: pointer;
-            pointer-events: auto;
-        }
-
-        .nav-back:hover {
-            background: rgba(255, 255, 255, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
-            transform: translateY(-50%) translateX(-2px);
-            text-decoration: none;
-            color: white;
-        }
-
-        .nav-back:active {
-            transform: translateY(-50%) scale(0.98);
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
-
-        .content {
-            padding: 40px;
-        }
-
-        .form-section {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 30px;
-            margin-bottom: 30px;
-            border-left: 5px solid #2E8B57;
-        }
-
-        .form-section h2 {
-            color: #333333;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #2E8B57;
-        }
-
-        .form-group textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            font-family: inherit;
-            resize: vertical;
-            min-height: 80px;
-            transition: border-color 0.3s;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .form-row-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-        }
-
-        .campi-section {
-            background: #fff;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        .campo-item {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-            border-left: 4px solid #2E8B57;
-        }
-
-        .campo-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .campo-title {
-            font-weight: 600;
-            color: #333333;
-        }
-
-        .remove-campo {
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .remove-campo:hover {
-            background: #c82333;
-        }
-
-        .add-campo {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 15px;
-            transition: background 0.3s;
-        }
-
-        .add-campo:hover {
-            background: #218838;
-        }
-
-        .calculate-btn {
-            background-color: #2E8B57;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            margin: 20px 0;
-            transition: background-color 0.3s ease;
-        }
-
-        .calculate-btn:hover {
-            background-color: #256E4A;
-        }
-
-        .result-section {
-            background: #e8f5e8;
-            border-radius: 10px;
-            padding: 30px;
-            margin-top: 30px;
-            border-left: 5px solid #28a745;
-        }
-
-        .result-section h2 {
-            color: #28a745;
-            margin-bottom: 20px;
-        }
-
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .result-item:last-child {
-            border-bottom: none;
-            font-weight: bold;
-            font-size: 1.2em;
-            color: #333333;
-        }
-
-        .print-btn {
-            background: #17a2b8;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 20px;
-            transition: background 0.3s;
-        }
-
-        .print-btn:hover {
-            background: #138496;
-        }
-
-        .settings-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 2px solid white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 15px;
-            transition: all 0.3s;
-        }
-
-        .settings-btn:hover {
-            background: white;
-            color: #2E8B57;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 30px;
-            border-radius: 15px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #2E8B57;
-            padding-bottom: 15px;
-        }
-
-        .modal-header h2 {
-            color: #333333;
-            margin: 0;
-        }
-
-        .close {
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            background: none;
-            border: none;
-        }
-
-        .close:hover {
-            color: #2E8B57;
-        }
-
-        .tariffe-edit-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .tariffa-edit-item {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-
-        .tariffa-edit-label {
-            font-weight: 600;
-            color: #333333;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .tariffa-edit-input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-
-        .tariffa-edit-input:focus {
-            outline: none;
-            border-color: #2E8B57;
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 30px;
-        }
-
-        .save-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        .save-btn:hover {
-            background: #218838;
-        }
-
-        .cancel-btn {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        .cancel-btn:hover {
-            background: #5a6268;
-        }
-
-        .section-title {
-            color: #333333;
-            font-size: 1.3em;
-            margin: 30px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #2E8B57;
-        }
-
-        /* Client Select Styles */
-        .client-select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #2E8B57;
-            border-radius: 8px;
-            font-size: 16px;
-            color: #333;
-            background-color: #fff;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .client-select:hover {
-            border-color: #256E4A;
-            box-shadow: 0 2px 8px rgba(46, 139, 87, 0.1);
-        }
-
-        .client-select:focus {
-            outline: none;
-            border-color: #256E4A;
-            box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.2);
-        }
-
-        .client-select option {
-            padding: 10px;
-        }
-
-        .client-dropdown-container {
-            position: relative;
-        }
-
-        .client-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 2px solid #2E8B57;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .client-dropdown-item {
-            padding: 12px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #eee;
-            transition: background-color 0.2s;
-        }
-
-        .client-dropdown-item:hover {
-            background-color: #f8f9fa;
-        }
-
-        .client-dropdown-item:last-child {
-            border-bottom: none;
-        }
-
-        .client-dropdown-item.selected {
-            background-color: #2E8B57;
-            color: white;
-        }
-
-        .client-dropdown-item .client-name {
-            font-weight: 600;
-            color: #2E8B57;
-        }
-
-        .client-dropdown-item.selected .client-name {
-            color: white;
-        }
-
-        .client-dropdown-item .client-details {
-            font-size: 12px;
-            color: #666;
-            margin-top: 2px;
-        }
-
-        .client-dropdown-item.selected .client-details {
-            color: rgba(255,255,255,0.8);
-        }
-
-        .client-dropdown-empty {
-            padding: 20px;
-            text-align: center;
-            color: #666;
-            font-style: italic;
-        }
-
-        /* Terreni Dropdown Styles */
-        .terreni-dropdown-container {
-            position: relative;
-        }
-
-        .terreni-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 2px solid #28a745;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .terreni-dropdown-item {
-            padding: 12px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #eee;
-            transition: background-color 0.2s;
-        }
-
-        .terreni-dropdown-item:hover {
-            background-color: #f8f9fa;
-        }
-
-        .terreni-dropdown-item:last-child {
-            border-bottom: none;
-        }
-
-        .terreni-dropdown-item.selected {
-            background-color: #28a745;
-            color: white;
-        }
-
-        .terreni-dropdown-item .terreno-name {
-            font-weight: 600;
-            color: #28a745;
-        }
-
-        .terreni-dropdown-item.selected .terreno-name {
-            color: white;
-        }
-
-        .terreni-dropdown-item .terreno-details {
-            font-size: 12px;
-            color: #666;
-            margin-top: 2px;
-        }
-
-        .terreni-dropdown-item.selected .terreno-details {
-            color: rgba(255,255,255,0.8);
-        }
-
-        .terreni-dropdown-empty {
-            padding: 20px;
-            text-align: center;
-            color: #666;
-            font-style: italic;
-        }
-
-        /* Stili sezione terreni */
-        .terreni-section {
-            margin: 20px 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 12px;
-            border: 2px solid #28a745;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.1);
-        }
-
-        .terreni-section h3 {
-            margin: 0 0 15px 0;
-            color: #28a745;
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .terreni-container {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .terreni-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e9ecef;
-        }
-
-        .terreni-header span {
-            font-weight: 600;
-            color: #495057;
-        }
-
-        .terreni-stats {
-            display: flex;
-            gap: 15px;
-        }
-
-        .terreni-stats span {
-            background: #28a745;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .terreni-list {
-            display: grid;
-            gap: 10px;
-        }
-
-        .terreno-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .terreno-item:hover {
-            background: #e9ecef;
-            border-color: #28a745;
-        }
-
-        .terreno-item.selected {
-            background: #d4edda;
-            border-color: #28a745;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
-        }
-
-        .terreno-checkbox {
-            margin-right: 12px;
-            transform: scale(1.2);
-        }
-
-        .terreno-info {
-            flex: 1;
-        }
-
-        .terreno-name {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .badge-vendemmiato {
-            display: inline-block;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .terreno-details {
-            font-size: 13px;
-            color: #6c757d;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .terreno-details span {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .terreno-date-container {
-            display: flex;
-            align-items: center;
-            margin-left: auto;
-            padding: 0 15px;
-        }
-
-        .terreno-date-input {
-            padding: 8px 12px;
-            border: 2px solid #28a745;
-            border-radius: 6px;
-            font-size: 14px;
-            background: white;
-            color: #495057;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .terreno-date-input:hover {
-            border-color: #20c997;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
-        }
-
-        .terreno-date-input:focus {
-            outline: none;
-            border-color: #20c997;
-            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
-        }
-
-        .terreno-empty {
-            text-align: center;
-            padding: 30px;
-            color: #6c757d;
-            font-style: italic;
-        }
-
-        .tariffe-section {
-            background: #fff3cd;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-left: 5px solid #ffc107;
-        }
-
-        .tariffe-section h2 {
-            color: #856404;
-            margin-bottom: 15px;
-        }
-
-        .tariffe-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .tariffa-item {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #ffc107;
-        }
-
-        .tariffa-label {
-            font-weight: 600;
-            color: #856404;
-            margin-bottom: 5px;
-        }
-
-        .tariffa-value {
-            font-size: 1.1em;
-            color: #333;
-        }
-
-        @media (max-width: 768px) {
-            .nav-back {
-                position: static;
-                transform: none;
-                margin-bottom: 20px;
-                align-self: flex-start;
-                font-size: 14px;
-                padding: 8px 16px;
-            }
-
-            .header {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-            }
-
-            .form-row,
-            .form-row-3 {
-                grid-template-columns: 1fr;
-            }
-            
-            .content {
-                padding: 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <a href="home.html" class="nav-back">
-                ← Dashboard
-            </a>
-            <img src="icons/icon-512x512.png" alt="GFV Logo" style="width: 60px; height: 60px; margin-bottom: 15px; display: inline-block;">
-            <h1>GFV Global Farm View</h1>
-            <p>Calcola automaticamente i compensi per la vendemmia meccanizzata</p>
-            <button class="settings-btn" onclick="apriImpostazioni()">⚙️ Impostazioni Tariffe</button>
-        </div>
-
-        <div class="content">
-            <!-- Sezione Tariffe -->
-            <div class="tariffe-section">
-                <h2>💰 Tariffe Anno Corrente</h2>
-                <div class="tariffe-grid">
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Montagna + Ferro</div>
-                        <div class="tariffa-value">€ <span id="tariffa-montagna-ferro">120</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Montagna + Legno</div>
-                        <div class="tariffa-value">€ <span id="tariffa-montagna-legno">110</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Montagna + Cemento</div>
-                        <div class="tariffa-value">€ <span id="tariffa-montagna-cemento">130</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Collina + Ferro</div>
-                        <div class="tariffa-value">€ <span id="tariffa-collina-ferro">100</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Collina + Legno</div>
-                        <div class="tariffa-value">€ <span id="tariffa-collina-legno">90</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Collina + Cemento</div>
-                        <div class="tariffa-value">€ <span id="tariffa-collina-cemento">110</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Pianura + Ferro</div>
-                        <div class="tariffa-value">€ <span id="tariffa-pianura-ferro">80</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Pianura + Legno</div>
-                        <div class="tariffa-value">€ <span id="tariffa-pianura-legno">70</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Pianura + Cemento</div>
-                        <div class="tariffa-value">€ <span id="tariffa-pianura-cemento">90</span>/ettaro</div>
-                    </div>
-                    <div class="tariffa-item">
-                        <div class="tariffa-label">Personalizzata</div>
-                        <div class="tariffa-value">€ <span id="tariffa-personalizzata">100</span>/ettaro</div>
-                    </div>
-                </div>
-                <div style="margin-top: 20px;">
-                    <h3 style="color: #856404; margin-bottom: 10px;">Tariffe Trasporto</h3>
-                    <div class="tariffe-grid">
-                        <div class="tariffa-item">
-                            <div class="tariffa-label">Cantina Sociale</div>
-                            <div class="tariffa-value">€ <span id="tariffa-sociale">0.15</span>/quintale</div>
-                        </div>
-                        <div class="tariffa-item">
-                            <div class="tariffa-label">Cantina Intesa</div>
-                            <div class="tariffa-value">€ <span id="tariffa-intesa">0.20</span>/quintale</div>
-                        </div>
-                        <div class="tariffa-item">
-                            <div class="tariffa-label">Cantina Colli Romagnoli</div>
-                            <div class="tariffa-value">€ <span id="tariffa-colli">0.18</span>/quintale</div>
-                        </div>
-                        <div class="tariffa-item">
-                            <div class="tariffa-label">Altro</div>
-                            <div class="tariffa-value">€ <span id="tariffa-altro">0.25</span>/quintale</div>
-                        </div>
-                        <div class="tariffa-item">
-                            <div class="tariffa-label">Personalizzata</div>
-                            <div class="tariffa-value">€ <span id="tariffa-trasporto-personalizzata">0.20</span>/quintale</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Form Principale -->
-            <div class="form-section">
-                <h2>📝 Dati Vendemmia</h2>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="cliente-select">Seleziona Cliente</label>
-                        <select id="cliente-select" class="client-select">
-                            <option value="">-- Seleziona un cliente --</option>
-                            <!-- Clienti verranno caricati dinamicamente -->
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="data-vendemmia">Data Calcolo</label>
-                        <input type="date" id="data-vendemmia">
-                    </div>
-                </div>
-
-                <!-- Sezione Terreni (visibile solo dopo selezione cliente) -->
-                <div id="terreni-section" class="terreni-section" style="display: none;">
-                    <h3>🏞️ Selezione Terreni</h3>
-                    <div class="terreni-container">
-                        <div class="terreni-header">
-                            <span id="terreni-cliente-info">Seleziona i terreni da vendemmiare</span>
-                            <div class="terreni-stats">
-                                <span id="terreni-selezionati">0 terreni selezionati</span>
-                                <span id="superficie-totale">0 ha totali</span>
-                            </div>
-                        </div>
-                        <div id="terreni-list" class="terreni-list">
-                            <!-- Terreni verranno caricati dinamicamente -->
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="destinazione">Destinazione Trasporto</label>
-                        <select id="destinazione">
-                            <option value="">Seleziona destinazione</option>
-                            <option value="sociale">Cantina Sociale</option>
-                            <option value="intesa">Cantina Intesa</option>
-                            <option value="colli">Cantina Colli Romagnoli</option>
-                            <option value="altro">Altro</option>
-                            <option value="personalizzata">Personalizzata</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="quintali">Quintali Trasportati</label>
-                        <input type="number" id="quintali" step="0.1" placeholder="Inserisci quintali">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="note">Note e Osservazioni</label>
-                    <textarea id="note" rows="3" placeholder="Inserisci note, osservazioni (es: pali rotti, problemi riscontrati, ecc.)"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="sconto">Sconto/Maggiorazioni (€)</label>
-                    <input type="number" id="sconto" step="0.01" placeholder="Inserisci importo (positivo per maggiorazioni, negativo per sconto)">
-                    <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
-                        Esempi: -50 per sconto di €50, +30 per maggiorazioni di €30
-                    </small>
-                </div>
-
-                <!-- Sezione Campi (NASCOSTA - sostituita da selezione terreni) -->
-                <div class="campi-section" style="display: none;">
-                    <h3 style="color: #8B4513; margin-bottom: 15px;">🏞️ Campi Vendemmiati</h3>
-                    <div id="campi-container">
-                        <!-- I campi verranno aggiunti dinamicamente -->
-                    </div>
-                    <button type="button" class="add-campo" onclick="aggiungiCampo()">+ Aggiungi Campo</button>
-                </div>
-
-                <button type="button" class="calculate-btn" onclick="calcolaCompenso()">🧮 Calcola Compenso</button>
-            </div>
-
-            <!-- Risultati -->
-            <div class="result-section" id="result-section" style="display: none;">
-                <h2>💰 Risultato Calcolo</h2>
-                <div id="risultati"></div>
-                <button type="button" class="print-btn" onclick="generaPDF()">📄 Genera PDF</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Impostazioni Tariffe -->
-    <div id="modalImpostazioni" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>⚙️ Impostazioni Tariffe</h2>
-                <button class="close" onclick="chiudiImpostazioni()">&times;</button>
-            </div>
-
-            <div class="section-title">💰 Tariffe Vendemmia (€ per ettaro)</div>
-            <div class="tariffe-edit-grid">
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Montagna + Ferro</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-montagna-ferro" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Montagna + Legno</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-montagna-legno" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Montagna + Cemento</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-montagna-cemento" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Collina + Ferro</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-collina-ferro" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Collina + Legno</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-collina-legno" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Collina + Cemento</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-collina-cemento" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Pianura + Ferro</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-pianura-ferro" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Pianura + Legno</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-pianura-legno" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Pianura + Cemento</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-pianura-cemento" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Personalizzata</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-personalizzata" step="0.01" min="0">
-                </div>
-            </div>
-
-            <div class="section-title">🚚 Tariffe Trasporto (€ per quintale)</div>
-            <div class="tariffe-edit-grid">
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Cantina Sociale</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-trasporto-sociale" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Cantina Intesa</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-trasporto-intesa" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Cantina Colli Romagnoli</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-trasporto-colli" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Altro</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-trasporto-altro" step="0.01" min="0">
-                </div>
-                <div class="tariffa-edit-item">
-                    <div class="tariffa-edit-label">Personalizzata</div>
-                    <input type="number" class="tariffa-edit-input" id="edit-trasporto-personalizzata" step="0.01" min="0">
-                </div>
-            </div>
-
-            <div class="modal-buttons">
-                <button class="save-btn" onclick="salvaTariffe()">💾 Salva Tariffe</button>
-                <button class="cancel-btn" onclick="chiudiImpostazioni()">❌ Annulla</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Versione 2.3 - Terminologia "Maggiorazioni"
-        // Tariffe vendemmia (euro per ettaro)
-        const tariffeVendemmia = {
-            'montagna-ferro': 120,
-            'montagna-legno': 110,
-            'montagna-cemento': 130,
-            'collina-ferro': 100,
-            'collina-legno': 90,
-            'collina-cemento': 110,
-            'pianura-ferro': 80,
-            'pianura-legno': 70,
-            'pianura-cemento': 90,
-            'personalizzata': 100
-        };
-
-        // Tariffe trasporto (euro per quintale)
-        const tariffeTrasporto = {
-            'sociale': 0.15,
-            'intesa': 0.20,
-            'colli': 0.18,
-            'altro': 0.25,
-            'personalizzata': 0.20
-        };
-
-        let campoCounter = 0;
-        let clientsData = [];
-        let selectedClient = null;
-        let selectedClientTerreni = [];
-        let selectedTerreni = []; // Terreni selezionati per la vendemmia
-        let terreniDateVendemmia = {}; // {index: '2025-09-18'} - Data vendemmia per ogni terreno
-
-        // ========== FIREBASE FUNCTIONS ==========
-
-        // Inizializza Firebase
-        async function inizializzaFirebase() {
-            try {
-                console.log('Inizializzazione Firebase...');
-                
-                // Carica clienti da Firebase
-                await caricaClientiDaFirebase();
-                
-                // Carica tariffe da Firebase
-                await caricaTariffeDaFirebase();
-                
-                // Setup dropdown clienti
-                setupClientDropdown();
-                
-                console.log('Firebase inizializzato con successo');
-            } catch (error) {
-                console.error('Errore inizializzazione Firebase:', error);
-                // Fallback a localStorage
-                console.log('Fallback a localStorage...');
-            }
-        }
-
-        // Carica clienti da Firebase
-        async function caricaClientiDaFirebase() {
-            try {
-                if (window.firebaseFunctions) {
-                    clientsData = await window.firebaseFunctions.getClients();
-                    console.log(`Caricati ${clientsData.length} clienti da Firebase`);
-                }
-            } catch (error) {
-                console.error('Errore caricamento clienti da Firebase:', error);
-                clientsData = [];
-            }
-        }
-
-        // Carica tariffe da Firebase
-        async function caricaTariffeDaFirebase() {
-            try {
-                if (window.firebaseFunctions) {
-                    const firebaseTariffe = await window.firebaseFunctions.getTariffe();
-                    if (firebaseTariffe) {
-                        // Aggiorna tariffe locali con quelle di Firebase
-                        if (firebaseTariffe.tariffeVendemmia) {
-                            Object.keys(firebaseTariffe.tariffeVendemmia).forEach(key => {
-                                tariffeVendemmia[key] = firebaseTariffe.tariffeVendemmia[key];
-                            });
-                        }
-                        if (firebaseTariffe.tariffeTrasporto) {
-                            Object.keys(firebaseTariffe.tariffeTrasporto).forEach(key => {
-                                tariffeTrasporto[key] = firebaseTariffe.tariffeTrasporto[key];
-                            });
-                        }
-                        aggiornaVisualizzazioneTariffe();
-                        console.log('Tariffe caricate da Firebase');
-                    }
-                }
-            } catch (error) {
-                console.error('Errore caricamento tariffe da Firebase:', error);
-            }
-        }
-
-        // Salva tariffe su Firebase
-        async function salvaTariffeSuFirebase() {
-            try {
-                if (window.firebaseFunctions) {
-                    await window.firebaseFunctions.saveTariffe({
-                        tariffeVendemmia: tariffeVendemmia,
-                        tariffeTrasporto: tariffeTrasporto
-                    });
-                    console.log('Tariffe salvate su Firebase');
-                }
-            } catch (error) {
-                console.error('Errore salvataggio tariffe su Firebase:', error);
-            }
-        }
-
-        // ========== CLIENT DROPDOWN FUNCTIONS ==========
-
-        // Setup dropdown clienti - Popola select
-        function setupClientDropdown() {
-            const clienteSelect = document.getElementById('cliente-select');
-            
-            // Clear existing options
-            clienteSelect.innerHTML = '<option value="">-- Seleziona un cliente --</option>';
-            
-            // Populate select with clients
-            clientsData.forEach(client => {
-                const option = document.createElement('option');
-                option.value = client.id;
-                option.textContent = `${client.nome} ${client.cognome}`;
-                if (client.indirizzo || client.cellulare) {
-                    option.textContent += ` (${client.indirizzo || ''}${client.cellulare ? ' | ' + client.cellulare : ''})`;
-                }
-                clienteSelect.appendChild(option);
-            });
-            
-            // Add change event listener
-            clienteSelect.addEventListener('change', function() {
-                const selectedClientId = this.value;
-                if (selectedClientId) {
-                    selezionaCliente(selectedClientId);
-                } else {
-                    selectedClient = null;
-                    selectedClientTerreni = [];
-                    selectedTerreni = [];
-                    document.getElementById('terreni-section').style.display = 'none';
-                }
-            });
-        }
-
-        // Seleziona cliente (semplificato)
-        function selezionaCliente(clientId) {
-            selectedClient = clientsData.find(c => c.id === clientId);
-            selectedClientTerreni = selectedClient ? selectedClient.terreni || [] : [];
-            selectedTerreni = []; // Reset terreni selezionati
-            
-            // Mostra sezione terreni e carica terreni del cliente
-            mostraSezioneTerreni();
-            caricaTerreniCliente();
-            
-            console.log('Cliente selezionato:', selectedClient);
-        }
-
-        // Mostra sezione terreni
-        function mostraSezioneTerreni() {
-            const terreniSection = document.getElementById('terreni-section');
-            if (terreniSection) {
-                terreniSection.style.display = 'block';
-            }
-        }
-
-        // Carica terreni del cliente selezionato
-        function caricaTerreniCliente() {
-            if (!selectedClient) return;
-
-            const terreniList = document.getElementById('terreni-list');
-            const clienteInfo = document.getElementById('terreni-cliente-info');
-            
-            // Ottieni anno corrente dalla data vendemmia o usa anno corrente
-            const dataVendemmiaInput = document.getElementById('data-vendemmia');
-            const annoCorrente = dataVendemmiaInput.value ? 
-                new Date(dataVendemmiaInput.value).getFullYear() : 
-                new Date().getFullYear();
-            
-            // Aggiorna info cliente
-            clienteInfo.textContent = `Terreni di ${selectedClient.nome} ${selectedClient.cognome}`;
-
-            if (!selectedClientTerreni || selectedClientTerreni.length === 0) {
-                terreniList.innerHTML = `
-                    <div class="terreno-empty">
-                        <p>🏞️ Nessun terreno disponibile per questo cliente</p>
-                        <p>Vai su <strong>Anagrafica Clienti</strong> per aggiungere terreni</p>
-                    </div>
-                `;
-                aggiornaStatsTerreni();
-                return;
-            }
-
-            // *** NUOVA FUNZIONALITÀ: Pre-seleziona terreni flaggati come vendemmiati ***
-            selectedTerreni = []; // Reset selezione
-            selectedClientTerreni.forEach((terreno, index) => {
-                // Verifica se il terreno è stato marcato come vendemmiato per l'anno corrente
-                const isVendemmiato = terreno.vendemmiati && terreno.vendemmiati[annoCorrente] === true;
-                if (isVendemmiato) {
-                    selectedTerreni.push(index);
-                    console.log(`✅ Pre-selezionato terreno "${terreno.nome}" (vendemmiato nel ${annoCorrente})`);
-                }
-            });
-
-            // Renderizza lista terreni con info superficie vendemmiata
-            terreniList.innerHTML = selectedClientTerreni.map((terreno, index) => {
-                const isVendemmiato = terreno.vendemmiati && terreno.vendemmiati[annoCorrente] === true;
-                const ettariTotali = terreno.ettari || 0;
-                const ettariVendemmiati = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoCorrente]) || ettariTotali;
-                const hasZoneEscluse = terreno.zoneEscluse && terreno.zoneEscluse[annoCorrente] && terreno.zoneEscluse[annoCorrente].length > 0;
-                
-                // Costruisci badge informativo
-                let badgeInfo = '';
-                if (isVendemmiato) {
-                    if (hasZoneEscluse) {
-                        const ettariEsclusi = ettariTotali - ettariVendemmiati;
-                        badgeInfo = `<span class="badge-vendemmiato">✅ Vendemmiato: ${ettariVendemmiati.toFixed(2)} ha (${ettariEsclusi.toFixed(2)} ha esclusi)</span>`;
-                    } else {
-                        badgeInfo = `<span class="badge-vendemmiato">✅ Vendemmiato: ${ettariVendemmiati.toFixed(2)} ha</span>`;
-                    }
-                }
-                
-                const dataVendemmiaPredefinita = document.getElementById('data-vendemmia').value || new Date().toISOString().split('T')[0];
-                const dataTerreno = terreniDateVendemmia[index] || dataVendemmiaPredefinita;
-                
-                return `
-                    <div class="terreno-item ${selectedTerreni.includes(index) ? 'selected' : ''}" onclick="toggleTerreno(${index})">
-                        <input type="checkbox" class="terreno-checkbox" id="terreno-${index}" 
-                               onchange="toggleTerreno(${index})" ${selectedTerreni.includes(index) ? 'checked' : ''}>
-                        <div class="terreno-info">
-                            <div class="terreno-name">${terreno.nome} ${badgeInfo}</div>
-                            <div class="terreno-details">
-                                <span>📏 ${ettariTotali.toFixed(2)} ha totali</span>
-                                ${isVendemmiato && hasZoneEscluse ? 
-                                    `<span>🌱 ${ettariVendemmiati.toFixed(2)} ha vendemmiati</span>` : 
-                                    ''
-                                }
-                                <span>🍇 ${terreno.tipoUva || 'N/A'}</span>
-                                <span>🏔️ ${terreno.morfologia || 'N/A'}</span>
-                                <span>🏗️ ${terreno.tipoPalo || 'N/A'}</span>
-                                ${terreno.polygonCoords && terreno.polygonCoords.length > 0 ? 
-                                    '<span>🗺️ Mappa disponibile</span>' : 
-                                    '<span>🗺️ Nessuna mappa</span>'
-                                }
-                            </div>
-                        </div>
-                        <div class="terreno-date-container" onclick="event.stopPropagation()">
-                            <input type="date" 
-                                   class="terreno-date-input" 
-                                   value="${dataTerreno}"
-                                   onchange="cambiaDataTerreno(${index}, this.value)"
-                                   placeholder="Data vendemmia">
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            aggiornaStatsTerreni();
-        }
-
-        // Toggle selezione terreno
-        function toggleTerreno(index) {
-            const checkbox = document.getElementById(`terreno-${index}`);
-            const terrenoItem = checkbox.closest('.terreno-item');
-            
-            if (checkbox.checked) {
-                if (!selectedTerreni.includes(index)) {
-                    selectedTerreni.push(index);
-                }
-                terrenoItem.classList.add('selected');
-            } else {
-                selectedTerreni = selectedTerreni.filter(i => i !== index);
-                terrenoItem.classList.remove('selected');
-            }
-            
-            aggiornaStatsTerreni();
-        }
-
-        // Cambia data vendemmia per un terreno specifico
-        function cambiaDataTerreno(index, data) {
-            terreniDateVendemmia[index] = data;
-            console.log(`Data vendemmia terreno ${index}: ${data}`);
-        }
-
-        // Aggiorna statistiche terreni
-        function aggiornaStatsTerreni() {
-            const terreniSelezionatiEl = document.getElementById('terreni-selezionati');
-            const superficieTotaleEl = document.getElementById('superficie-totale');
-            
-            // Ottieni anno dalla data vendemmia
-            const dataVendemmiaInput = document.getElementById('data-vendemmia');
-            const annoCorrente = dataVendemmiaInput.value ? 
-                new Date(dataVendemmiaInput.value).getFullYear() : 
-                new Date().getFullYear();
-            
-            const count = selectedTerreni.length;
-            
-            // *** NUOVA FUNZIONALITÀ: Usa ettariVendemmiati se disponibili ***
-            const superficieTotale = selectedTerreni.reduce((totale, index) => {
-                const terreno = selectedClientTerreni[index];
-                // Usa ettari vendemmiati se disponibili, altrimenti ettari totali
-                const ettari = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoCorrente]) || 
-                               (parseFloat(terreno.ettari) || 0);
-                return totale + ettari;
-            }, 0);
-            
-            terreniSelezionatiEl.textContent = `${count} terreni selezionati`;
-            superficieTotaleEl.textContent = `${superficieTotale.toFixed(2)} ha vendemmiati`;
-        }
-
-        // Aggiorna dropdown terreni (funzione legacy - da rimuovere)
-        function aggiornaDropdownTerreni() {
-            // Questa funzione sarà implementata quando aggiungeremo il dropdown terreni
-            console.log('Terreni disponibili:', selectedClientTerreni);
-        }
-
-        // Salva calcolo su Firebase
-        async function salvaCalcoloSuFirebase(calculationData) {
-            try {
-                if (window.firebaseFunctions) {
-                    await window.firebaseFunctions.saveCalculation(calculationData);
-                    console.log('Calcolo salvato su Firebase');
-                }
-            } catch (error) {
-                console.error('Errore salvataggio calcolo su Firebase:', error);
-            }
-        }
-
-        // Inizializza con un campo
-        document.addEventListener('DOMContentLoaded', function() {
-            caricaTariffeSalvate();
-            aggiornaVisualizzazioneTariffe();
-            aggiungiCampo();
-            // Imposta data odierna
-            document.getElementById('data-vendemmia').value = new Date().toISOString().split('T')[0];
-            
-            // Inizializza Firebase dopo che è stato caricato
-            setTimeout(() => {
-                inizializzaFirebase();
-            }, 1000);
-        });
-
-        // Carica tariffe salvate dal localStorage
-        function caricaTariffeSalvate() {
-            const tariffeSalvate = localStorage.getItem('tariffeVendemmia');
-            if (tariffeSalvate) {
-                const tariffe = JSON.parse(tariffeSalvate);
-                Object.keys(tariffe).forEach(key => {
-                    tariffeVendemmia[key] = tariffe[key];
-                });
-            }
-
-            const trasportiSalvati = localStorage.getItem('tariffeTrasporto');
-            if (trasportiSalvati) {
-                const trasporti = JSON.parse(trasportiSalvati);
-                Object.keys(trasporti).forEach(key => {
-                    tariffeTrasporto[key] = trasporti[key];
-                });
-            }
-        }
-
-        // Salva tariffe nel localStorage
-        function salvaTariffeNelStorage() {
-            localStorage.setItem('tariffeVendemmia', JSON.stringify(tariffeVendemmia));
-            localStorage.setItem('tariffeTrasporto', JSON.stringify(tariffeTrasporto));
-        }
-
-        // Aggiorna la visualizzazione delle tariffe nella pagina principale
-        function aggiornaVisualizzazioneTariffe() {
-            document.getElementById('tariffa-montagna-ferro').textContent = tariffeVendemmia['montagna-ferro'];
-            document.getElementById('tariffa-montagna-legno').textContent = tariffeVendemmia['montagna-legno'];
-            document.getElementById('tariffa-montagna-cemento').textContent = tariffeVendemmia['montagna-cemento'];
-            document.getElementById('tariffa-collina-ferro').textContent = tariffeVendemmia['collina-ferro'];
-            document.getElementById('tariffa-collina-legno').textContent = tariffeVendemmia['collina-legno'];
-            document.getElementById('tariffa-collina-cemento').textContent = tariffeVendemmia['collina-cemento'];
-            document.getElementById('tariffa-pianura-ferro').textContent = tariffeVendemmia['pianura-ferro'];
-            document.getElementById('tariffa-pianura-legno').textContent = tariffeVendemmia['pianura-legno'];
-            document.getElementById('tariffa-pianura-cemento').textContent = tariffeVendemmia['pianura-cemento'];
-            document.getElementById('tariffa-personalizzata').textContent = tariffeVendemmia['personalizzata'];
-
-            document.getElementById('tariffa-sociale').textContent = tariffeTrasporto['sociale'];
-            document.getElementById('tariffa-intesa').textContent = tariffeTrasporto['intesa'];
-            document.getElementById('tariffa-colli').textContent = tariffeTrasporto['colli'];
-            document.getElementById('tariffa-altro').textContent = tariffeTrasporto['altro'];
-            document.getElementById('tariffa-trasporto-personalizzata').textContent = tariffeTrasporto['personalizzata'];
-        }
-
-        // Apri modal impostazioni
-        function apriImpostazioni() {
-            // Carica i valori attuali nei campi di modifica
-            document.getElementById('edit-montagna-ferro').value = tariffeVendemmia['montagna-ferro'];
-            document.getElementById('edit-montagna-legno').value = tariffeVendemmia['montagna-legno'];
-            document.getElementById('edit-montagna-cemento').value = tariffeVendemmia['montagna-cemento'];
-            document.getElementById('edit-collina-ferro').value = tariffeVendemmia['collina-ferro'];
-            document.getElementById('edit-collina-legno').value = tariffeVendemmia['collina-legno'];
-            document.getElementById('edit-collina-cemento').value = tariffeVendemmia['collina-cemento'];
-            document.getElementById('edit-pianura-ferro').value = tariffeVendemmia['pianura-ferro'];
-            document.getElementById('edit-pianura-legno').value = tariffeVendemmia['pianura-legno'];
-            document.getElementById('edit-pianura-cemento').value = tariffeVendemmia['pianura-cemento'];
-            document.getElementById('edit-personalizzata').value = tariffeVendemmia['personalizzata'];
-
-            document.getElementById('edit-trasporto-sociale').value = tariffeTrasporto['sociale'];
-            document.getElementById('edit-trasporto-intesa').value = tariffeTrasporto['intesa'];
-            document.getElementById('edit-trasporto-colli').value = tariffeTrasporto['colli'];
-            document.getElementById('edit-trasporto-altro').value = tariffeTrasporto['altro'];
-            document.getElementById('edit-trasporto-personalizzata').value = tariffeTrasporto['personalizzata'];
-
-            document.getElementById('modalImpostazioni').style.display = 'block';
-        }
-
-        // Chiudi modal impostazioni
-        function chiudiImpostazioni() {
-            document.getElementById('modalImpostazioni').style.display = 'none';
-        }
-
-        // Salva tariffe
-        function salvaTariffe() {
-            // Aggiorna tariffe vendemmia
-            tariffeVendemmia['montagna-ferro'] = parseFloat(document.getElementById('edit-montagna-ferro').value) || 0;
-            tariffeVendemmia['montagna-legno'] = parseFloat(document.getElementById('edit-montagna-legno').value) || 0;
-            tariffeVendemmia['montagna-cemento'] = parseFloat(document.getElementById('edit-montagna-cemento').value) || 0;
-            tariffeVendemmia['collina-ferro'] = parseFloat(document.getElementById('edit-collina-ferro').value) || 0;
-            tariffeVendemmia['collina-legno'] = parseFloat(document.getElementById('edit-collina-legno').value) || 0;
-            tariffeVendemmia['collina-cemento'] = parseFloat(document.getElementById('edit-collina-cemento').value) || 0;
-            tariffeVendemmia['pianura-ferro'] = parseFloat(document.getElementById('edit-pianura-ferro').value) || 0;
-            tariffeVendemmia['pianura-legno'] = parseFloat(document.getElementById('edit-pianura-legno').value) || 0;
-            tariffeVendemmia['pianura-cemento'] = parseFloat(document.getElementById('edit-pianura-cemento').value) || 0;
-            tariffeVendemmia['personalizzata'] = parseFloat(document.getElementById('edit-personalizzata').value) || 0;
-
-            // Aggiorna tariffe trasporto
-            tariffeTrasporto['sociale'] = parseFloat(document.getElementById('edit-trasporto-sociale').value) || 0;
-            tariffeTrasporto['intesa'] = parseFloat(document.getElementById('edit-trasporto-intesa').value) || 0;
-            tariffeTrasporto['colli'] = parseFloat(document.getElementById('edit-trasporto-colli').value) || 0;
-            tariffeTrasporto['altro'] = parseFloat(document.getElementById('edit-trasporto-altro').value) || 0;
-            tariffeTrasporto['personalizzata'] = parseFloat(document.getElementById('edit-trasporto-personalizzata').value) || 0;
-
-            // Salva nel localStorage (fallback)
-            salvaTariffeNelStorage();
-
-            // Salva su Firebase
-            salvaTariffeSuFirebase();
-
-            // Aggiorna visualizzazione
-            aggiornaVisualizzazioneTariffe();
-
-            // Chiudi modal
-            chiudiImpostazioni();
-
-            // Mostra conferma
-            alert('✅ Tariffe salvate con successo!');
-        }
-
-        // Chiudi modal cliccando fuori
-        window.onclick = function(event) {
-            const modal = document.getElementById('modalImpostazioni');
-            if (event.target == modal) {
-                chiudiImpostazioni();
-            }
-        }
-
-        function aggiungiCampo() {
-            campoCounter++;
-            const container = document.getElementById('campi-container');
-            const campoDiv = document.createElement('div');
-            campoDiv.className = 'campo-item';
-            campoDiv.id = `campo-${campoCounter}`;
-            
-            campoDiv.innerHTML = `
-                <div class="campo-header">
-                    <span class="campo-title">Campo ${campoCounter}</span>
-                    <button type="button" class="remove-campo" onclick="rimuoviCampo(${campoCounter})">Rimuovi</button>
-                </div>
-                <div class="form-row-3">
-                    <div class="form-group">
-                        <label>Nome Campo</label>
-                        <input type="text" id="nome-campo-${campoCounter}" placeholder="Nome del campo">
-                    </div>
-                    <div class="form-group">
-                        <label>Ettari</label>
-                        <input type="number" id="ettari-${campoCounter}" step="0.1" placeholder="Ettari">
-                    </div>
-                    <div class="form-group">
-                        <label>Morfologia</label>
-                        <select id="morfologia-${campoCounter}">
-                            <option value="">Seleziona</option>
-                            <option value="montagna">Montagna</option>
-                            <option value="collina">Collina</option>
-                            <option value="pianura">Pianura</option>
-                            <option value="personalizzata">Personalizzata</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Tipo Palo</label>
-                    <select id="tipo-palo-${campoCounter}">
-                        <option value="">Seleziona</option>
-                        <option value="ferro">Ferro</option>
-                        <option value="legno">Legno</option>
-                        <option value="cemento">Cemento</option>
-                        <option value="personalizzata">Personalizzata</option>
-                    </select>
-                </div>
-            `;
-            
-            container.appendChild(campoDiv);
-        }
-
-        function rimuoviCampo(id) {
-            const campo = document.getElementById(`campo-${id}`);
-            if (campo) {
-                campo.remove();
-            }
-        }
-
-        function calcolaCompenso() {
-            const clienteSelect = document.getElementById('cliente-select');
-            const selectedClientId = clienteSelect.value;
-            const cliente = selectedClient ? `${selectedClient.nome} ${selectedClient.cognome}` : '';
-            const dataVendemmia = document.getElementById('data-vendemmia').value;
-            const destinazione = document.getElementById('destinazione').value;
-            const quintali = parseFloat(document.getElementById('quintali').value) || 0;
-            const note = document.getElementById('note').value;
-            const sconto = parseFloat(document.getElementById('sconto').value) || 0;
-
-            if (!selectedClientId || !dataVendemmia || !destinazione) {
-                alert('Per favore compila tutti i campi obbligatori');
-                return;
-            }
-
-            // Verifica che siano stati selezionati dei terreni
-            if (selectedTerreni.length === 0) {
-                alert('Per favore seleziona almeno un terreno da vendemmiare');
-                return;
-            }
-
-            // *** NUOVA FUNZIONALITÀ: Usa ettariVendemmiati invece di ettari totali ***
-            const annoVendemmia = new Date(dataVendemmia).getFullYear();
-            
-            // Calcola direttamente dai terreni selezionati
-            const campi = selectedTerreni.map(index => {
-                const terreno = selectedClientTerreni[index];
-                // Usa ettari vendemmiati se disponibili, altrimenti ettari totali
-                const ettariEffettivi = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoVendemmia]) || 
-                                       (parseFloat(terreno.ettari) || 0);
-                
-                // Ottieni data vendemmia specifica per questo terreno
-                const dataTerreno = terreniDateVendemmia[index] || dataVendemmia;
-                
-                return {
-                    nome: terreno.nome,
-                    ettari: ettariEffettivi,
-                    ettariTotali: terreno.ettari, // Mantieni anche ettari totali per info
-                    morfologia: terreno.morfologia,
-                    tipoPalo: terreno.tipoPalo,
-                    dataVendemmia: dataTerreno
-                };
-            });
-
-            // Calcola tariffa vendemmia
-            let totaleVendemmia = 0;
-            let dettagliCampi = '';
-
-            campi.forEach(campo => {
-                const chiaveTariffa = `${campo.morfologia}-${campo.tipoPalo}`;
-                const tariffaPerEttaro = tariffeVendemmia[chiaveTariffa];
-                const costoCampo = campo.ettari * tariffaPerEttaro;
-                totaleVendemmia += costoCampo;
-
-                const dataFormattata = new Date(campo.dataVendemmia).toLocaleDateString('it-IT');
-                dettagliCampi += `
-                    <div class="result-item">
-                        <span>🏞️ ${campo.nome} (${campo.ettari.toFixed(2)} ha - ${campo.morfologia} + ${campo.tipoPalo}) - 📅 ${dataFormattata}</span>
-                        <span>€ ${costoCampo.toFixed(2)}</span>
-                    </div>
-                `;
-            });
-
-            // Calcola tariffa trasporto
-            const tariffaTrasportoPerQuintale = tariffeTrasporto[destinazione];
-            const totaleTrasporto = quintali * tariffaTrasportoPerQuintale;
-
-            // Totale finale
-            const totaleFinale = totaleVendemmia + totaleTrasporto + sconto;
-
-            // Prepara dettagli terreni selezionati con info zone escluse
-            const dettagliTerreni = selectedTerreni.map(index => {
-                const terreno = selectedClientTerreni[index];
-                const ettariTotali = terreno.ettari || 0;
-                const ettariVendemmiati = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoVendemmia]) || ettariTotali;
-                const hasZoneEscluse = ettariTotali !== ettariVendemmiati;
-                
-                return `
-                    <div class="result-item">
-                        <span>🏞️ ${terreno.nome} ${hasZoneEscluse ? `(${ettariVendemmiati.toFixed(2)} ha vendemmiati su ${ettariTotali.toFixed(2)} ha totali)` : ''}</span>
-                        <span>${ettariVendemmiati.toFixed(2)} ha</span>
-                    </div>
-                `;
-            }).join('');
-
-            // *** USA ettariVendemmiati per superficie totale ***
-            const superficieTotaleTerreni = selectedTerreni.reduce((totale, index) => {
-                const terreno = selectedClientTerreni[index];
-                const ettariEffettivi = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoVendemmia]) || 
-                                       (parseFloat(terreno.ettari) || 0);
-                return totale + ettariEffettivi;
-            }, 0);
-
-            // Mostra risultati
-            const risultati = document.getElementById('risultati');
-            risultati.innerHTML = `
-                <div class="result-item">
-                    <span><strong>Cliente:</strong> ${cliente}</span>
-                    <span></span>
-                </div>
-                <div class="result-item">
-                    <span><strong>Data Calcolo:</strong> ${new Date(dataVendemmia).toLocaleDateString('it-IT')}</span>
-                    <span></span>
-                </div>
-                <div class="result-item">
-                    <span><strong>Destinazione:</strong> ${document.getElementById('destinazione').selectedOptions[0].text}</span>
-                    <span></span>
-                </div>
-                <div class="result-item">
-                    <span><strong>Quintali Trasportati:</strong> ${quintali}</span>
-                    <span></span>
-                </div>
-                <div class="result-item">
-                    <span><strong>Superficie Totale:</strong> ${superficieTotaleTerreni.toFixed(2)} ha</span>
-                    <span></span>
-                </div>
-                ${note ? `
-                <div class="result-item">
-                    <span><strong>Note:</strong> ${note}</span>
-                    <span></span>
-                </div>
-                ` : ''}
-                <hr style="margin: 15px 0;">
-                <h3 style="color: #28a745; margin-bottom: 10px;">🏞️ Terreni Selezionati:</h3>
-                ${dettagliTerreni}
-                <hr style="margin: 15px 0;">
-                <h3 style="color: #8B4513; margin-bottom: 10px;">Dettaglio Campi:</h3>
-                ${dettagliCampi}
-                <hr style="margin: 15px 0;">
-                <div class="result-item">
-                    <span>Totale Vendemmia:</span>
-                    <span>€ ${totaleVendemmia.toFixed(2)}</span>
-                </div>
-                <div class="result-item">
-                    <span>Totale Trasporto (${quintali} qli × €${tariffaTrasportoPerQuintale}/qli):</span>
-                    <span>€ ${totaleTrasporto.toFixed(2)}</span>
-                </div>
-                ${sconto !== 0 ? `
-                <div class="result-item">
-                    <span>Sconto/Maggiorazioni:</span>
-                    <span style="color: ${sconto < 0 ? '#dc3545' : '#28a745'}; font-weight: bold;">
-                        ${sconto > 0 ? '+' : ''}€ ${sconto.toFixed(2)}
-                    </span>
-                </div>
-                ` : ''}
-                <div class="result-item">
-                    <span><strong>COMPENSO TOTALE:</strong></span>
-                    <span><strong>€ ${totaleFinale.toFixed(2)}</strong></span>
-                </div>
-            `;
-
-            document.getElementById('result-section').style.display = 'block';
-            
-            // Prepara dati terreni selezionati per il salvataggio
-            const terreniSelezionatiData = selectedTerreni.map(index => {
-                const terreno = selectedClientTerreni[index];
-                const ettariEffettivi = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoVendemmia]) || 
-                                       (parseFloat(terreno.ettari) || 0);
-                
-                const terrenoData = {
-                    nome: terreno.nome,
-                    ettari: ettariEffettivi, // *** USA ettari vendemmiati effettivi ***
-                    ettariTotali: terreno.ettari, // *** Salva anche ettari totali per riferimento ***
-                    tipoUva: terreno.tipoUva,
-                    morfologia: terreno.morfologia,
-                    tipoPalo: terreno.tipoPalo
-                };
-                
-                // Aggiungi solo campi definiti (non undefined)
-                if (terreno.formaAllevamento !== undefined && terreno.formaAllevamento !== null) {
-                    terrenoData.formaAllevamento = terreno.formaAllevamento;
-                }
-                if (terreno.note !== undefined && terreno.note !== null && terreno.note !== '') {
-                    terrenoData.note = terreno.note;
-                }
-                if (terreno.polygonCoords !== undefined && terreno.polygonCoords !== null) {
-                    terrenoData.polygonCoords = terreno.polygonCoords;
-                }
-                // Salva info zone escluse se presenti
-                if (terreno.zoneEscluse && terreno.zoneEscluse[annoVendemmia]) {
-                    terrenoData.zoneEscluse = terreno.zoneEscluse[annoVendemmia];
-                }
-                
-                return terrenoData;
-            });
-
-            // Prepara dati calcolo rimuovendo campi undefined
-            const calcoloData = {
-                cliente: cliente,
-                dataVendemmia: dataVendemmia,
-                destinazione: destinazione,
-                quintali: quintali || 0,
-                sconto: sconto || 0,
-                terreniSelezionati: terreniSelezionatiData,
-                superficieTotaleTerreni: superficieTotaleTerreni,
-                campi: campi,
-                totaleVendemmia: totaleVendemmia,
-                totaleTrasporto: totaleTrasporto,
-                totaleFinale: totaleFinale
-            };
-            
-            // Aggiungi note solo se presente
-            if (note !== undefined && note !== null && note !== '') {
-                calcoloData.note = note;
-            }
-
-            // Salva calcolo su Firebase
-            salvaCalcoloSuFirebase(calcoloData);
-        }
-
-        function generaPDF() {
-            if (!selectedClient) {
-                alert('Nessun cliente selezionato');
-                return;
-            }
-            
-            const cliente = `${selectedClient.nome} ${selectedClient.cognome}`;
-            const dataVendemmia = document.getElementById('data-vendemmia').value;
-            const destinazione = document.getElementById('destinazione').selectedOptions[0].text;
-            const quintali = document.getElementById('quintali').value;
-            const note = document.getElementById('note').value;
-            const sconto = parseFloat(document.getElementById('sconto').value) || 0;
-            
-            // Ottieni i dati dai terreni selezionati (usa la stessa logica di calcolaCompenso)
-            const annoVendemmia = new Date(dataVendemmia).getFullYear();
-            const campi = selectedTerreni.map(index => {
-                const terreno = selectedClientTerreni[index];
-                const ettariEffettivi = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[annoVendemmia]) || 
-                                       (parseFloat(terreno.ettari) || 0);
-                const dataTerreno = terreniDateVendemmia[index] || dataVendemmia;
-                
-                return {
-                    nome: terreno.nome,
-                    ettari: ettariEffettivi,
-                    ettariTotali: terreno.ettari,
-                    morfologia: terreno.morfologia,
-                    tipoPalo: terreno.tipoPalo,
-                    dataVendemmia: dataTerreno
-                };
-            });
-
-            // Calcola totali (usa la stessa logica di calcolaCompenso)
-            let totaleVendemmia = 0;
-            campi.forEach(campo => {
-                const chiaveTariffa = `${campo.morfologia}-${campo.tipoPalo}`;
-                const tariffaPerEttaro = tariffeVendemmia[chiaveTariffa];
-                totaleVendemmia += campo.ettari * tariffaPerEttaro;
-            });
-
-            const tariffaTrasportoPerQuintale = tariffeTrasporto[document.getElementById('destinazione').value];
-            const totaleTrasporto = parseFloat(quintali) * tariffaTrasportoPerQuintale;
-            const totaleFinale = totaleVendemmia + totaleTrasporto + sconto;
-
-            // Crea PDF
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            // Colori
-            const colorePrimario = [139, 69, 19]; // #8B4513
-            const coloreSecondario = [160, 82, 45]; // #A0522D
-            
-            // Header
-            doc.setFillColor(...colorePrimario);
-            doc.rect(0, 0, 210, 35, 'F');
-            
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(18);
-            doc.setFont('helvetica', 'bold');
-            doc.text('REPORT VENDEMMIA MECCANIZZATA', 105, 18, { align: 'center' });
-            
-            doc.setFontSize(10);
-            doc.text(`Data generazione: ${new Date().toLocaleDateString('it-IT')}`, 105, 28, { align: 'center' });
-            
-            // Reset colori
-            doc.setTextColor(0, 0, 0);
-            
-            // Informazioni cliente
-            let yPos = 50;
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('INFORMAZIONI CLIENTE', 20, yPos);
-            
-            yPos += 10;
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`Cliente: ${cliente}`, 20, yPos);
-            yPos += 8;
-            doc.text(`Data Calcolo: ${new Date(dataVendemmia).toLocaleDateString('it-IT')}`, 20, yPos);
-            yPos += 8;
-            doc.text(`Destinazione: ${destinazione}`, 20, yPos);
-            yPos += 8;
-            doc.text(`Quintali Trasportati: ${quintali}`, 20, yPos);
-            
-            if (note) {
-                yPos += 8;
-                doc.text(`Note: ${note}`, 20, yPos);
-            }
-            
-            if (sconto !== 0) {
-                yPos += 8;
-                doc.text(`Sconto/Maggiorazioni: ${sconto > 0 ? '+' : ''}€${sconto.toFixed(2)}`, 20, yPos);
-            }
-            
-            // Dettaglio campi
-            yPos += 15;
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('DETTAGLIO CAMPI', 20, yPos);
-            
-            yPos += 10;
-            doc.setFont('helvetica', 'normal');
-            
-            // Dati campi - formato verticale per leggibilità
-            campi.forEach((campo, idx) => {
-                const chiaveTariffa = `${campo.morfologia}-${campo.tipoPalo}`;
-                const tariffaPerEttaro = tariffeVendemmia[chiaveTariffa];
-                const costoCampo = campo.ettari * tariffaPerEttaro;
-                const dataFormattata = new Date(campo.dataVendemmia).toLocaleDateString('it-IT');
-                
-                // Controlla se serve una nuova pagina
-                if (yPos > 250) {
-                    doc.addPage();
-                    yPos = 30;
-                }
-                
-                // Box per ogni campo
-                doc.setFillColor(248, 249, 250);
-                doc.rect(20, yPos - 4, 170, 20, 'F');
-                
-                // Testo con grassetto
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(11);
-                doc.text(`${idx + 1}. ${campo.nome}`, 25, yPos + 4);
-                
-                // Dettagli sottostanti
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                
-                yPos += 8;
-                doc.text(`   Superficie: ${campo.ettari.toFixed(2)} ha`, 25, yPos);
-                yPos += 6;
-                doc.text(`   Data vendemmia: ${dataFormattata}`, 25, yPos);
-                yPos += 6;
-                doc.text(`   Morfologia: ${campo.morfologia} | Palo: ${campo.tipoPalo}`, 25, yPos);
-                yPos += 6;
-                doc.setTextColor(139, 69, 19);
-                doc.setFont('helvetica', 'bold');
-                doc.text(`   Costo: €${costoCampo.toFixed(2)}`, 25, yPos);
-                doc.setTextColor(0, 0, 0);
-                
-                yPos += 8;
-            });
-            
-            // Riepilogo costi
-            yPos += 10;
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            
-            // Linea separatrice
-            doc.setDrawColor(...colorePrimario);
-            doc.setLineWidth(0.5);
-            doc.line(20, yPos, 190, yPos);
-            yPos += 8;
-            
-            doc.text('RIEPILOGO COSTI', 20, yPos);
-            yPos += 10;
-            
-            doc.setFont('helvetica', 'normal');
-            doc.text('Totale Vendemmia:', 20, yPos);
-            doc.text(`€${totaleVendemmia.toFixed(2)}`, 170, yPos);
-            yPos += 8;
-            
-            doc.text(`Totale Trasporto (${quintali} qli × €${tariffaTrasportoPerQuintale}/qli):`, 20, yPos);
-            doc.text(`€${totaleTrasporto.toFixed(2)}`, 170, yPos);
-            yPos += 8;
-            
-            if (sconto !== 0) {
-                doc.text('Sconto/Maggiorazioni:', 20, yPos);
-                doc.setTextColor(sconto < 0 ? 220 : 40, sconto < 0 ? 53 : 167, sconto < 0 ? 69 : 40);
-                doc.text(`${sconto > 0 ? '+' : ''}€${sconto.toFixed(2)}`, 170, yPos);
-                doc.setTextColor(0, 0, 0);
-                yPos += 8;
-            }
-            
-            // Totale finale
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(14);
-            doc.setFillColor(...colorePrimario);
-            doc.rect(20, yPos - 5, 170, 10, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.text('COMPENSO TOTALE:', 25, yPos + 2);
-            doc.text(`€${totaleFinale.toFixed(2)}`, 170, yPos + 2);
-            
-            // Footer
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            doc.text('Documento generato automaticamente dal Calcolatore Compensi Vendemmia Meccanizzata', 105, 280, { align: 'center' });
-            
-            // Salva PDF
-            const nomeFile = `Report_Vendemmia_${cliente.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-            doc.save(nomeFile);
-        }
     </script>
 </body>
 </html>
+
