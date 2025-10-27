@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Firebase Semplificato</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Test Firebase Semplificato</h1>
+        
+        <div id="status" class="status info">
+            Inizializzazione Firebase...
+        </div>
+
+        <div>
+            <h3>🔧 Test Diagnostico</h3>
+            <button onclick="testConnection()">Test Connessione</button>
+            <button onclick="testAuth()">Test Auth</button>
+            <button onclick="testDatabase()">Test Database</button>
+            <button onclick="clearLog()">Pulisci Log</button>
+        </div>
+
+        <div>
+            <h3>📊 Log Diagnostico</h3>
+            <div id="log" class="log">Inizializzazione...</div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        let firebaseApp = null;
+        let firebaseDb = null;
+        let firebaseAuth = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logDiv.textContent += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        window.clearLog = function() {
+            document.getElementById('log').textContent = '';
+        };
+
+        window.testConnection = async function() {
+            try {
+                log('🔍 Test connessione Firebase...');
+                
+                // Test import Firebase
+                log('📦 Importando Firebase...');
+                const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                log('✅ Firebase App importato');
+                
+                // Test configurazione
+                log('⚙️ Test configurazione...');
+                const firebaseConfig = {
+                    apiKey: "AIzaSyCpS12dA3c0LceaxHNMhntEhgPyfwsØRSE",
+                    authDomain: "vendemmia-meccanizzata.firebaseapp.com",
+                    projectId: "vendemmia-meccanizzata",
+                    storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
+                    messagingSenderId: "745067977805",
+                    appId: "1:745067977805:web:095dd00b16f9ad2f199004",
+                    measurementId: "G-6T53WV1GD3"
+                };
+                log('✅ Configurazione verificata');
+                
+                // Test inizializzazione
+                log('🚀 Inizializzando Firebase...');
+                firebaseApp = initializeApp(firebaseConfig);
+                log('✅ Firebase inizializzato');
+                
+                updateStatus('✅ Connessione Firebase riuscita!', 'success');
+                
+            } catch (error) {
+                log(`❌ Errore connessione: ${error.message}`);
+                log(`❌ Stack: ${error.stack}`);
+                updateStatus(`❌ Errore: ${error.message}`, 'error');
+            }
+        };
+
+        window.testAuth = async function() {
+            try {
+                log('🔐 Test Authentication...');
+                
+                if (!firebaseApp) {
+                    log('❌ Firebase non inizializzato');
+                    return;
+                }
+                
+                const { getAuth, signInAnonymously } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+                firebaseAuth = getAuth(firebaseApp);
+                log('✅ Auth inizializzato');
+                
+                log('👤 Tentativo login anonimo...');
+                const userCredential = await signInAnonymously(firebaseAuth);
+                log(`✅ Login anonimo riuscito: ${userCredential.user.uid}`);
+                
+                updateStatus('✅ Authentication funziona!', 'success');
+                
+            } catch (error) {
+                log(`❌ Errore Auth: ${error.message}`);
+                updateStatus(`❌ Errore Auth: ${error.message}`, 'error');
+            }
+        };
+
+        window.testDatabase = async function() {
+            try {
+                log('🗄️ Test Database...');
+                
+                if (!firebaseApp) {
+                    log('❌ Firebase non inizializzato');
+                    return;
+                }
+                
+                const { getFirestore, collection, addDoc, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                firebaseDb = getFirestore(firebaseApp);
+                log('✅ Firestore inizializzato');
+                
+                log('📝 Test scrittura documento...');
+                const testData = {
+                    test: true,
+                    timestamp: new Date(),
+                    message: 'Test Firebase'
+                };
+                
+                const docRef = await addDoc(collection(firebaseDb, 'test'), testData);
+                log(`✅ Documento scritto: ${docRef.id}`);
+                
+                log('📖 Test lettura documenti...');
+                const querySnapshot = await getDocs(collection(firebaseDb, 'test'));
+                log(`✅ Letti ${querySnapshot.size} documenti`);
+                
+                updateStatus('✅ Database funziona!', 'success');
+                
+            } catch (error) {
+                log(`❌ Errore Database: ${error.message}`);
+                updateStatus(`❌ Errore Database: ${error.message}`, 'error');
+            }
+        };
+
+        // Auto-test all'avvio
+        setTimeout(() => {
+            log('🚀 Avvio test automatico...');
+            testConnection();
+        }, 1000);
+    </script>
+</body>
+</html>
+

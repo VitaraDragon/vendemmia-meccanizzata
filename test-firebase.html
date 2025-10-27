@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Firebase - Vendemmia Meccanizzata</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Test Firebase - Vendemmia Meccanizzata</h1>
+        
+        <div id="status" class="status info">
+            Inizializzazione Firebase...
+        </div>
+
+        <div class="test-section">
+            <h3>🔐 Test Authentication</h3>
+            <input type="email" id="email" placeholder="Email" value="test@vendemmia.com">
+            <input type="password" id="password" placeholder="Password" value="test123456">
+            <button onclick="testSignUp()">Registra Utente</button>
+            <button onclick="testSignIn()">Login</button>
+            <button onclick="testSignOut()">Logout</button>
+            <div id="auth-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>👥 Test Clienti</h3>
+            <input type="text" id="client-nome" placeholder="Nome Cliente" value="Mario">
+            <input type="text" id="client-cognome" placeholder="Cognome Cliente" value="Rossi">
+            <input type="text" id="client-indirizzo" placeholder="Indirizzo" value="Via Roma 1, Bologna">
+            <input type="text" id="client-cellulare" placeholder="Cellulare" value="+39 123 456 7890">
+            <button onclick="testAddClient()">Aggiungi Cliente</button>
+            <button onclick="testGetClients()">Carica Clienti</button>
+            <div id="clients-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>💰 Test Tariffe</h3>
+            <button onclick="testSaveTariffe()">Salva Tariffe</button>
+            <button onclick="testGetTariffe()">Carica Tariffe</button>
+            <div id="tariffe-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Test Migrazione</h3>
+            <button onclick="testMigration()">Migra da localStorage</button>
+            <div id="migration-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Log Firebase</h3>
+            <div id="firebase-log" style="background: #f8f9fa; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { 
+            initializeApp, 
+            getAnalytics,
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            doc,
+            getDoc,
+            updateDoc,
+            getAuth,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut,
+            onAuthStateChanged
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getFirestore as getFirestoreModule,
+            collection as collectionModule,
+            addDoc as addDocModule,
+            getDocs as getDocsModule,
+            doc as docModule,
+            getDoc as getDocModule,
+            updateDoc as updateDocModule
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { 
+            getAuth as getAuthModule,
+            createUserWithEmailAndPassword as createUserWithEmailAndPasswordModule,
+            signInWithEmailAndPassword as signInWithEmailAndPasswordModule,
+            signOut as signOutModule,
+            onAuthStateChanged as onAuthStateChangedModule
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpS12dA3c0LceaxHNMhntEhgPyfwsØRSE",
+            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
+            projectId: "vendemmia-meccanizzata",
+            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
+            messagingSenderId: "745067977805",
+            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
+            measurementId: "G-6T53WV1GD3"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Log function
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('firebase-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logDiv.textContent += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Update status
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Test functions
+        window.testSignUp = async function() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                log(`Tentativo registrazione: ${email}`);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                log(`✅ Utente registrato: ${userCredential.user.email}`);
+                updateStatus('✅ Utente registrato con successo!', 'success');
+            } catch (error) {
+                log(`❌ Errore registrazione: ${error.message}`);
+                updateStatus(`❌ Errore: ${error.message}`, 'error');
+            }
+        };
+
+        window.testSignIn = async function() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                log(`Tentativo login: ${email}`);
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                log(`✅ Login riuscito: ${userCredential.user.email}`);
+                updateStatus('✅ Login riuscito!', 'success');
+            } catch (error) {
+                log(`❌ Errore login: ${error.message}`);
+                updateStatus(`❌ Errore: ${error.message}`, 'error');
+            }
+        };
+
+        window.testSignOut = async function() {
+            try {
+                await signOut(auth);
+                log('✅ Logout riuscito');
+                updateStatus('✅ Logout riuscito!', 'success');
+            } catch (error) {
+                log(`❌ Errore logout: ${error.message}`);
+                updateStatus(`❌ Errore: ${error.message}`, 'error');
+            }
+        };
+
+        window.testAddClient = async function() {
+            try {
+                const clientData = {
+                    nome: document.getElementById('client-nome').value,
+                    cognome: document.getElementById('client-cognome').value,
+                    indirizzo: document.getElementById('client-indirizzo').value,
+                    cellulare: document.getElementById('client-cellulare').value,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+
+                log(`Aggiunta cliente: ${clientData.nome} ${clientData.cognome}`);
+                const docRef = await addDoc(collection(db, 'clients'), clientData);
+                log(`✅ Cliente aggiunto con ID: ${docRef.id}`);
+                
+                document.getElementById('clients-result').innerHTML = 
+                    `<div class="status success">✅ Cliente aggiunto con ID: ${docRef.id}</div>`;
+            } catch (error) {
+                log(`❌ Errore aggiunta cliente: ${error.message}`);
+                document.getElementById('clients-result').innerHTML = 
+                    `<div class="status error">❌ Errore: ${error.message}</div>`;
+            }
+        };
+
+        window.testGetClients = async function() {
+            try {
+                log('Caricamento clienti...');
+                const querySnapshot = await getDocs(collection(db, 'clients'));
+                const clients = [];
+                querySnapshot.forEach((doc) => {
+                    clients.push({ id: doc.id, ...doc.data() });
+                });
+                
+                log(`✅ Caricati ${clients.length} clienti`);
+                document.getElementById('clients-result').innerHTML = 
+                    `<div class="status success">✅ Caricati ${clients.length} clienti</div>
+                     <pre>${JSON.stringify(clients, null, 2)}</pre>`;
+            } catch (error) {
+                log(`❌ Errore caricamento clienti: ${error.message}`);
+                document.getElementById('clients-result').innerHTML = 
+                    `<div class="status error">❌ Errore: ${error.message}</div>`;
+            }
+        };
+
+        window.testSaveTariffe = async function() {
+            try {
+                const tariffeData = {
+                    tariffeVendemmia: {
+                        'montagna-ferro': 120,
+                        'montagna-legno': 110,
+                        'montagna-cemento': 130,
+                        'collina-ferro': 100,
+                        'collina-legno': 90,
+                        'collina-cemento': 110,
+                        'pianura-ferro': 80,
+                        'pianura-legno': 70,
+                        'pianura-cemento': 90,
+                        'personalizzata': 100
+                    },
+                    tariffeTrasporto: {
+                        'sociale': 0.15,
+                        'intesa': 0.20,
+                        'colli': 0.18,
+                        'altro': 0.25,
+                        'personalizzata': 0.20
+                    },
+                    updatedAt: new Date()
+                };
+
+                log('Salvataggio tariffe...');
+                const tariffeRef = doc(db, 'tariffe', 'current');
+                await updateDoc(tariffeRef, tariffeData);
+                log('✅ Tariffe salvate');
+                
+                document.getElementById('tariffe-result').innerHTML = 
+                    `<div class="status success">✅ Tariffe salvate con successo!</div>`;
+            } catch (error) {
+                log(`❌ Errore salvataggio tariffe: ${error.message}`);
+                document.getElementById('tariffe-result').innerHTML = 
+                    `<div class="status error">❌ Errore: ${error.message}</div>`;
+            }
+        };
+
+        window.testGetTariffe = async function() {
+            try {
+                log('Caricamento tariffe...');
+                const tariffeRef = doc(db, 'tariffe', 'current');
+                const tariffeSnap = await getDoc(tariffeRef);
+                
+                if (tariffeSnap.exists()) {
+                    const tariffe = tariffeSnap.data();
+                    log('✅ Tariffe caricate');
+                    document.getElementById('tariffe-result').innerHTML = 
+                        `<div class="status success">✅ Tariffe caricate</div>
+                         <pre>${JSON.stringify(tariffe, null, 2)}</pre>`;
+                } else {
+                    log('⚠️ Nessuna tariffa trovata');
+                    document.getElementById('tariffe-result').innerHTML = 
+                        `<div class="status info">⚠️ Nessuna tariffa trovata</div>`;
+                }
+            } catch (error) {
+                log(`❌ Errore caricamento tariffe: ${error.message}`);
+                document.getElementById('tariffe-result').innerHTML = 
+                    `<div class="status error">❌ Errore: ${error.message}</div>`;
+            }
+        };
+
+        window.testMigration = async function() {
+            try {
+                log('Inizio migrazione da localStorage...');
+                
+                // Check if there are clients in localStorage
+                const savedClients = localStorage.getItem('vendemmia_clients');
+                if (savedClients) {
+                    const clients = JSON.parse(savedClients);
+                    log(`Trovati ${clients.length} clienti in localStorage`);
+                    
+                    for (const client of clients) {
+                        const { id, ...clientData } = client;
+                        await addDoc(collection(db, 'clients'), {
+                            ...clientData,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                    }
+                    log(`✅ Migrati ${clients.length} clienti`);
+                }
+                
+                // Check tariffe
+                const savedTariffeVendemmia = localStorage.getItem('tariffeVendemmia');
+                const savedTariffeTrasporto = localStorage.getItem('tariffeTrasporto');
+                
+                if (savedTariffeVendemmia || savedTariffeTrasporto) {
+                    const tariffeData = {
+                        tariffeVendemmia: savedTariffeVendemmia ? JSON.parse(savedTariffeVendemmia) : {},
+                        tariffeTrasporto: savedTariffeTrasporto ? JSON.parse(savedTariffeTrasporto) : {},
+                        updatedAt: new Date()
+                    };
+                    
+                    const tariffeRef = doc(db, 'tariffe', 'current');
+                    await updateDoc(tariffeRef, tariffeData);
+                    log('✅ Tariffe migrate');
+                }
+                
+                log('✅ Migrazione completata!');
+                document.getElementById('migration-result').innerHTML = 
+                    `<div class="status success">✅ Migrazione completata con successo!</div>`;
+            } catch (error) {
+                log(`❌ Errore migrazione: ${error.message}`);
+                document.getElementById('migration-result').innerHTML = 
+                    `<div class="status error">❌ Errore: ${error.message}</div>`;
+            }
+        };
+
+        // Listen to auth state changes
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                log(`👤 Utente autenticato: ${user.email}`);
+                document.getElementById('auth-status').innerHTML = 
+                    `<div class="status success">👤 Autenticato come: ${user.email}</div>`;
+            } else {
+                log('👤 Nessun utente autenticato');
+                document.getElementById('auth-status').innerHTML = 
+                    `<div class="status info">👤 Nessun utente autenticato</div>`;
+            }
+        });
+
+        // Initialize
+        log('🔥 Firebase inizializzato');
+        updateStatus('✅ Firebase inizializzato correttamente!', 'success');
+    </script>
+</body>
+</html>
+

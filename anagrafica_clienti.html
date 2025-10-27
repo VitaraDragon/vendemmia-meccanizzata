@@ -1,0 +1,2355 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anagrafica Clienti - Vendemmia Meccanizzata</title>
+    <!-- Google Maps API -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBmjpHJg5LtQj_4RtDmRuQQJmyH1bCRWU8&libraries=geometry&callback=initGoogleMaps"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, query, orderBy, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
+            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
+            projectId: "vendemmia-meccanizzata",
+            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
+            messagingSenderId: "745067977805",
+            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
+            measurementId: "G-6T53WV1GD3"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Make Firebase available globally
+        window.firebaseApp = app;
+        window.firebaseDb = db;
+        window.firebaseAuth = auth;
+        
+        // Make Firebase functions available globally
+        window.firebaseFunctions = {
+            getDocs,
+            addDoc,
+            updateDoc,
+            deleteDoc,
+            getDoc,
+            collection,
+            doc,
+            query,
+            orderBy
+        };
+        
+        // Make db available globally for easier access
+        window.db = db;
+
+        // Setup listener for anno changes
+        let annoListener = null;
+
+        // Initialize authentication (no redirect)
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log('User authenticated:', user.uid);
+            } else {
+                console.log('No authentication - using database only');
+            }
+            
+            // Load anno selezionato da Firestore
+            currentYear = await getAnnoSelezionato();
+            console.log('Anno selezionato per questa pagina:', currentYear);
+            
+            // Setup real-time listener for anno changes
+            const annoRef = doc(db, 'preferenze', 'annoSelezionato');
+            annoListener = onSnapshot(annoRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const newYear = snapshot.data().anno;
+                    if (newYear !== currentYear) {
+                        currentYear = newYear;
+                        console.log('Anno aggiornato in tempo reale:', currentYear);
+                        // Refresh clients list to update status indicators
+                        loadClients();
+                    }
+                }
+            });
+            
+            // Load clients regardless of auth state
+            loadClients();
+        });
+
+        console.log('Firebase initialized successfully');
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #B0E0E6 0%, #228B22 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(180deg, #2E8B57 0%, #256E4A 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .nav-back {
+            position: absolute;
+            left: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-back:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-50%) translateX(-2px);
+            text-decoration: none;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .stats-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 2px solid #f0f0f0;
+        }
+
+        .stat-number {
+            font-size: 3em;
+            font-weight: bold;
+            color: #8B4513;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .search-actions-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #8B4513;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #7a3a0f 0%, #8f4a25 100%);
+        }
+
+        .clients-table {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr 1.5fr 2fr;
+            gap: 15px;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        .table-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .table-header-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr 1.5fr 2fr;
+            gap: 15px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .client-name {
+            font-weight: 600;
+            color: #8B4513;
+        }
+
+        .client-info {
+            color: #333;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .btn-terreni {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-terreni:hover {
+            background: #218838;
+        }
+
+        .btn-edit {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-edit:hover {
+            background: #e0a800;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+        }
+
+        /* Terreni Table Layout */
+        .terreni-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .terreni-header {
+            background: #f8f9fa;
+            color: #000;
+            display: grid;
+            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1.5fr;
+            gap: 15px;
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 0.95em;
+            text-align: center;
+            border-bottom: 2px solid #2E8B57;
+        }
+
+        .terreno-row {
+            display: grid;
+            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1.5fr;
+            gap: 15px;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+            transition: background-color 0.2s;
+            text-align: center;
+        }
+
+        .terreno-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .terreno-row:last-child {
+            border-bottom: none;
+        }
+
+        .col-nome {
+            text-align: left;
+        }
+
+        .terreno-name {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 1em;
+        }
+
+        .col-morfologia, .col-uva, .col-palo {
+            color: #333;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .terreno-morfologia, .terreno-uva, .terreno-palo {
+            color: #333;
+            font-size: 0.9em;
+            font-weight: normal;
+        }
+
+        .col-ettari {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 1em;
+        }
+
+        .col-mappa {
+            text-align: center;
+        }
+
+        .map-indicator {
+            font-size: 1.2em;
+        }
+
+        .map-indicator.no-map {
+            opacity: 0.3;
+        }
+
+        .col-stato {
+            text-align: center;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #000;
+        }
+
+        .col-azioni {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-edit-small, .btn-delete-small {
+            background: none;
+            border: none;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+
+        .btn-edit-small {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-edit-small:hover {
+            background: #e0a800;
+            transform: scale(1.1);
+        }
+
+        .btn-delete-small {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-delete-small:hover {
+            background: #c82333;
+            transform: scale(1.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            #terreni-modal .modal-content {
+                max-width: 95%;
+            }
+            
+            .terreni-header, .terreno-row {
+                font-size: 0.85em;
+                grid-template-columns: 2fr 1.5fr 1fr 1fr 0.8fr 0.7fr 0.8fr 1.2fr;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .terreni-header, .terreno-row {
+                grid-template-columns: 2fr 1.3fr 1fr 1fr 0.7fr 0.6fr 0.7fr 1fr;
+                font-size: 0.8em;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .terreni-header, .terreno-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .terreni-header > div {
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            
+            .terreno-row > div {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .terreno-row > div:before {
+                content: attr(data-label);
+                font-weight: bold;
+                color: #666;
+            }
+        }
+
+        /* Form Layout Styles */
+        .form-section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            color: #28a745;
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-grid .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-grid .form-group label {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .form-grid .form-group input,
+        .form-grid .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: border-color 0.2s;
+        }
+
+        .form-grid .form-group input:focus,
+        .form-grid .form-group select:focus {
+            outline: none;
+            border-color: #28a745;
+            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+        }
+
+        /* Responsive form grid */
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
+
+        /* Map styles */
+        .map-container {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            margin: 15px 0;
+        }
+
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .map-controls input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .map-controls button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-map-search {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-map-draw {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-map-clear {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-map-calculate {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .map-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #28a745;
+        }
+
+        .map-info h4 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .map-info p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .surface-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 15px;
+            color: #8B4513;
+            font-size: 1.5em;
+        }
+
+        .empty-state p {
+            font-size: 1.1em;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        /* Wider modal for terreni */
+        #terreni-modal .modal-content {
+            max-width: 1400px;
+            width: 95%;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2E8B57;
+            padding-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            color: #333333;
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .close:hover {
+            color: #2E8B57;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #8B4513;
+        }
+
+        .form-group textarea {
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        @media (max-width: 768px) {
+            .nav-back {
+                position: static;
+                transform: none;
+                margin-bottom: 20px;
+                align-self: flex-start;
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+
+            .header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .table-row,
+            .table-header-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .table-header-row {
+                display: none;
+            }
+
+            .table-row {
+                border: 2px solid #8B4513;
+                border-radius: 8px;
+                margin-bottom: 15px;
+                padding: 15px;
+            }
+
+            .search-actions-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-input {
+                min-width: auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="home.html" class="nav-back">
+                ← Dashboard
+            </a>
+            <img src="icons/icon-512x512.png" alt="GFV Logo" style="width: 60px; height: 60px; margin-bottom: 15px; display: inline-block;">
+            <h1>GFV Global Farm View</h1>
+            <p>Gestione completa dei clienti per vendemmia meccanizzata</p>
+        </div>
+
+        <div class="content">
+            <!-- Statistics Section -->
+            <div class="stats-section">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-clients">0</div>
+                    <div class="stat-label">Clienti Totali</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="displayed-clients">0</div>
+                    <div class="stat-label">Clienti Visualizzati</div>
+                </div>
+            </div>
+
+            <!-- Search and Actions Section -->
+            <div class="search-actions-section">
+                <input type="text" id="search-input" class="search-input" placeholder="Cerca per nome, cognome, indirizzo o cellulare..." onkeyup="filterClients()">
+                <button class="btn btn-secondary" onclick="clearSearch()">🗑️ Cancella</button>
+                <button class="btn btn-primary" onclick="openAddModal()">➕ Aggiungi Cliente</button>
+            </div>
+
+            <!-- Clients Table -->
+            <div class="clients-table">
+                <div class="table-header-row">
+                    <div>Nome</div>
+                    <div>Cognome</div>
+                    <div>Indirizzo</div>
+                    <div>Cellulare</div>
+                    <div>Azioni</div>
+                </div>
+                <div id="clients-container">
+                    <div class="empty-state">
+                        <h3>Nessun cliente trovato</h3>
+                        <p>Aggiungi il tuo primo cliente utilizzando il pulsante "Aggiungi Cliente".</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Client Modal -->
+    <div id="client-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">➕ Aggiungi Nuovo Cliente</h2>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="client-form">
+                <input type="hidden" id="client-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nome">Nome *</label>
+                        <input type="text" id="nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cognome">Cognome *</label>
+                        <input type="text" id="cognome" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="indirizzo">Indirizzo</label>
+                    <input type="text" id="indirizzo" placeholder="Via, Città, CAP">
+                </div>
+                <div class="form-group">
+                    <label for="cellulare">Cellulare</label>
+                    <input type="tel" id="cellulare" placeholder="+39 123 456 7890">
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-success">💾 Salva Cliente</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">❌ Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Terreni Management Modal -->
+    <div id="terreni-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="terreni-modal-title">🏞️ Gestione Terreni</h2>
+                <button class="close" onclick="closeTerreniModal()">&times;</button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <h3 id="terreni-client-name">Cliente: </h3>
+                <div style="display: flex; gap: 10px; margin-top: 15px; align-items: center;">
+                    <button class="btn btn-primary" onclick="openAddTerrenoModal()">➕ Aggiungi Terreno</button>
+                    <span style="background: #28a745; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;">
+                        📅 Anno: <span id="terreni-year-display"></span>
+                    </span>
+                </div>
+            </div>
+            <div id="terreni-container">
+                <!-- Terreni will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone Escluse Modal -->
+    <div id="zone-escluse-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>🗺️ Traccia Zone NON Vendemmiate - Anno <span id="ze-year"></span></h2>
+                <button class="close" onclick="closeZoneEscluseModal()">&times;</button>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 5px 0;"><strong>Campo:</strong> <span id="ze-terreno-name"></span></p>
+                <p style="margin: 5px 0;"><strong>Superficie totale:</strong> <span id="ze-total-ha"></span> Ha</p>
+            </div>
+            
+            <div class="map-controls">
+                <button type="button" id="btn-draw-zone-esclusa" class="btn-map-draw" onclick="startDrawingZoneEscluse()">✏️ Traccia Zona Esclusa</button>
+                <button type="button" class="btn-map-clear" onclick="clearLastZoneEsclusa()">🗑️ Cancella Ultima</button>
+                <button type="button" class="btn-map-clear" onclick="clearAllZoneEscluse()">🗑️ Cancella Tutte</button>
+            </div>
+            
+            <div id="map-zone-escluse" class="map-container"></div>
+            
+            <div id="ze-info" class="map-info">
+                <h4>📊 Riepilogo Zone Escluse</h4>
+                <p><strong>Zone escluse tracciate:</strong> <span id="ze-count">0</span></p>
+                <p><strong>Superficie esclusa:</strong> <span id="ze-excluded-ha">0.00</span> Ha</p>
+                <p style="font-size: 1.2em; color: #28a745;"><strong>Superficie effettivamente vendemmiata:</strong> <span id="ze-effective-ha">0.00</span> Ha</p>
+            </div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="btn btn-success" onclick="saveZoneEscluse()">💾 Salva e Chiudi</button>
+                <button type="button" class="btn btn-secondary" onclick="closeZoneEscluseModal()">❌ Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Terreno Modal -->
+    <div id="terreno-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="terreno-modal-title">➕ Aggiungi Nuovo Terreno</h2>
+                <button class="close" onclick="closeTerrenoModal()">&times;</button>
+            </div>
+            <form id="terreno-form">
+                <input type="hidden" id="terreno-index">
+                
+                <!-- Informazioni Principali -->
+                <div class="form-section">
+                    <h3 class="section-title">📋 Informazioni Terreno</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="terreno-nome">Nome Terreno *</label>
+                            <input type="text" id="terreno-nome" required placeholder="Es: Campo Nord, Vigna Sud">
+                        </div>
+                        <div class="form-group">
+                            <label for="terreno-ettari">Ettari</label>
+                            <input type="number" id="terreno-ettari" step="0.01" placeholder="2.50">
+                        </div>
+                        <div class="form-group">
+                            <label for="terreno-tipoUva">Varietà Uva</label>
+                            <select id="terreno-tipoUva">
+                                <option value="">Seleziona</option>
+                                <option value="Sangiovese">Sangiovese</option>
+                                <option value="Trebbiano">Trebbiano</option>
+                                <option value="Albana">Albana</option>
+                                <option value="Chardonnay">Chardonnay</option>
+                                <option value="Merlot">Merlot</option>
+                                <option value="Cabernet">Cabernet</option>
+                                <option value="Pinot Bianco">Pinot Bianco</option>
+                                <option value="Pinot Grigio">Pinot Grigio</option>
+                                <option value="Pinot Nero">Pinot Nero</option>
+                                <option value="Famoso">Famoso</option>
+                                <option value="Cagnina">Cagnina</option>
+                                <option value="Cabernet Sauvignon">Cabernet Sauvignon</option>
+                                <option value="Malvasia">Malvasia</option>
+                                <option value="Altro">Altro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="terreno-morfologia">Morfologia</label>
+                            <select id="terreno-morfologia">
+                                <option value="">Seleziona</option>
+                                <option value="montagna">Montagna</option>
+                                <option value="collina">Collina</option>
+                                <option value="pianura">Pianura</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="terreno-tipoPalo">Tipo Palo</label>
+                            <select id="terreno-tipoPalo">
+                                <option value="">Seleziona</option>
+                                <option value="ferro">Ferro</option>
+                                <option value="legno">Legno</option>
+                                <option value="cemento">Cemento</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Google Maps Section -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #8B4513;">
+                    <h3 style="color: #8B4513; margin-bottom: 15px;">🗺️ Mappa e Misurazione</h3>
+                    
+                    <div class="map-controls">
+                        <input type="text" id="map-search" placeholder="Cerca indirizzo per arrivare alla zona..." />
+                        <button type="button" class="btn-map-search" onclick="searchLocation()">🔍 Cerca</button>
+                        <button type="button" id="btn-draw" class="btn-map-draw" onclick="toggleDrawing()">✏️ Traccia Confini</button>
+                        <button type="button" class="btn-map-clear" onclick="clearPolygon()">🗑️ Cancella</button>
+                        <button type="button" class="btn-map-calculate" onclick="calculateArea()">📏 Calcola Superficie</button>
+                    </div>
+                    
+                    <div id="map" class="map-container"></div>
+                    
+                    <div id="map-info" class="map-info" style="display: none;">
+                        <h4>📊 Informazioni Misurazione</h4>
+                        <p><strong>Superficie calcolata:</strong> <span id="calculated-area">0</span> ettari</p>
+                        <p><strong>Superficie manuale:</strong> <span id="manual-area">0</span> ettari</p>
+                        <div id="surface-warning" class="surface-warning" style="display: none;">
+                            ⚠️ <strong>Attenzione:</strong> La superficie calcolata dalla mappa (<span id="warning-calculated">0</span> ha) è diversa da quella inserita manualmente (<span id="warning-manual">0</span> ha). Vuoi sostituire la superficie manuale con quella calcolata?
+                            <br><br>
+                            <button type="button" class="btn btn-success" onclick="replaceManualArea()">✅ Sì, sostituisci</button>
+                            <button type="button" class="btn btn-secondary" onclick="keepManualArea()">❌ No, mantieni manuale</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-success">💾 Salva Terreno</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeTerrenoModal()">❌ Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let clients = [];
+        let filteredClients = [];
+
+        // Google Maps variables
+        let map;
+        let drawingManager;
+        let polygon;
+        let isDrawing = false;
+        let currentPolygonCoords = [];
+        
+        // Zone Escluse variables
+        let mapZoneEscluse;
+        let currentZoneEscluseIndex = null;
+        let zoneEsclusePolygons = []; // Array di poligoni rossi
+        let mainPolygonZE = null; // Poligono verde (confini totali) nella mappa zone escluse
+        let isDrawingZoneEsclusa = false;
+
+        // Initialize Google Maps
+        function initGoogleMaps() {
+            console.log('Google Maps initialized');
+            window.googleMapsReady = true;
+        }
+
+        // Initialize map when modal opens
+        function initMap() {
+            if (map) return; // Already initialized
+            
+            // Check if Google Maps is available
+            if (typeof google === 'undefined' || !google.maps) {
+                document.getElementById('map').innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f8f9fa; border-radius: 8px; flex-direction: column;">
+                        <h3 style="color: #dc3545; margin-bottom: 15px;">⚠️ Google Maps non disponibile</h3>
+                        <p style="color: #666; text-align: center; margin-bottom: 20px;">
+                            Per utilizzare la mappa e il calcolo automatico della superficie,<br>
+                            è necessario configurare una chiave API di Google Maps valida.
+                        </p>
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 5px; max-width: 400px;">
+                            <strong>Come configurare:</strong><br>
+                            1. Vai su <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a><br>
+                            2. Crea un progetto e abilita Maps JavaScript API<br>
+                            3. Genera una chiave API<br>
+                            4. Sostituisci "YOUR_GOOGLE_MAPS_API_KEY" nel codice
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Default center (Bologna area)
+                const defaultCenter = { lat: 44.4949, lng: 11.3426 };
+                
+                map = new google.maps.Map(document.getElementById('map'), {
+                    zoom: 15,
+                    center: defaultCenter,
+                    mapTypeId: google.maps.MapTypeId.SATELLITE
+                });
+
+                // Initialize click listener for manual polygon drawing
+                map.addListener('click', function(event) {
+                    if (isDrawing) {
+                        if (!polygon) {
+                            // Create new polygon with initial path
+                            polygon = new google.maps.Polygon({
+                                paths: [event.latLng],
+                                fillColor: '#28a745',
+                                fillOpacity: 0.3,
+                                strokeColor: '#28a745',
+                                strokeWeight: 2,
+                                clickable: false,
+                                editable: true,
+                                draggable: true
+                            });
+                            polygon.setMap(map);
+                            currentPolygonCoords = [event.latLng];
+                        } else {
+                            // Add point to existing polygon
+                            const path = polygon.getPath();
+                            path.push(event.latLng);
+                            currentPolygonCoords = path.getArray();
+                        }
+                        
+                        // Show info if we have at least 3 points
+                        if (currentPolygonCoords.length >= 3) {
+                            document.getElementById('map-info').style.display = 'block';
+                            updateAreaInfo();
+                        }
+                    }
+                });
+
+                // Listen for polygon changes when editing
+                map.addListener('polygon_changed', function() {
+                    if (polygon) {
+                        currentPolygonCoords = polygon.getPath().getArray();
+                        if (currentPolygonCoords.length >= 3) {
+                            updateAreaInfo();
+                        }
+                    }
+                });
+                
+                console.log('Map initialized successfully');
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                document.getElementById('map').innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f8f9fa; border-radius: 8px;">
+                        <div style="text-align: center;">
+                            <h3 style="color: #dc3545;">❌ Errore caricamento mappa</h3>
+                            <p style="color: #666;">Impossibile caricare Google Maps</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Search location
+        function searchLocation() {
+            const geocoder = new google.maps.Geocoder();
+            const address = document.getElementById('map-search').value;
+
+            if (!address) {
+                alert('Inserisci un indirizzo da cercare');
+                return;
+            }
+
+            geocoder.geocode({ address: address }, function(results, status) {
+                if (status === 'OK') {
+                    map.setCenter(results[0].geometry.location);
+                    map.setZoom(18);
+                    
+                    // Add marker
+                    new google.maps.Marker({
+                        map: map,
+                        position: results[0].geometry.location,
+                        title: address
+                    });
+                } else {
+                    alert('Indirizzo non trovato: ' + status);
+                }
+            });
+        }
+
+        // Toggle drawing mode
+        function toggleDrawing() {
+            isDrawing = !isDrawing;
+            const btn = document.getElementById('btn-draw');
+            
+            if (isDrawing) {
+                btn.textContent = '⏹️ Stop Tracciamento';
+                btn.style.backgroundColor = '#dc3545';
+                document.getElementById('map').style.cursor = 'crosshair';
+                // Clear any existing polygon when starting new drawing
+                if (polygon) {
+                    polygon.setMap(null);
+                    polygon = null;
+                    currentPolygonCoords = [];
+                    document.getElementById('map-info').style.display = 'none';
+                }
+            } else {
+                btn.textContent = '✏️ Traccia Confini';
+                btn.style.backgroundColor = '#007bff';
+                document.getElementById('map').style.cursor = 'default';
+            }
+        }
+
+        // Clear polygon
+        function clearPolygon() {
+            if (polygon) {
+                polygon.setMap(null);
+                polygon = null;
+                currentPolygonCoords = [];
+                document.getElementById('map-info').style.display = 'none';
+            }
+        }
+
+        // Calculate area
+        function calculateArea() {
+            if (!polygon || currentPolygonCoords.length < 3) {
+                alert('Traccia prima i confini del terreno');
+                return;
+            }
+
+            const area = google.maps.geometry.spherical.computeArea(currentPolygonCoords);
+            const areaHectares = area / 10000; // Convert from m² to hectares
+            
+            document.getElementById('calculated-area').textContent = areaHectares.toFixed(2);
+            updateAreaInfo();
+        }
+
+        // Update area information
+        function updateAreaInfo() {
+            if (!polygon) return;
+            
+            const area = google.maps.geometry.spherical.computeArea(currentPolygonCoords);
+            const areaHectares = area / 10000;
+            
+            document.getElementById('calculated-area').textContent = areaHectares.toFixed(2);
+            
+            const manualArea = parseFloat(document.getElementById('terreno-ettari').value) || 0;
+            document.getElementById('manual-area').textContent = manualArea.toFixed(2);
+            
+            // Only update automatically if no manual area is set
+            if (areaHectares > 0 && manualArea === 0) {
+                document.getElementById('terreno-ettari').value = areaHectares.toFixed(2);
+                document.getElementById('manual-area').textContent = areaHectares.toFixed(2);
+            }
+        }
+
+        // Replace manual area with calculated
+        function replaceManualArea() {
+            const calculatedArea = document.getElementById('calculated-area').textContent;
+            document.getElementById('terreno-ettari').value = calculatedArea;
+            document.getElementById('surface-warning').style.display = 'none';
+            updateAreaInfo();
+        }
+
+        // Keep manual area
+        function keepManualArea() {
+            document.getElementById('surface-warning').style.display = 'none';
+        }
+
+        // Load existing polygon when editing terreno
+        function loadExistingPolygon(polygonCoords) {
+            if (!polygonCoords || polygonCoords.length === 0) return;
+            
+            clearPolygon();
+            
+            polygon = new google.maps.Polygon({
+                paths: polygonCoords,
+                fillColor: '#28a745',
+                fillOpacity: 0.3,
+                strokeColor: '#28a745',
+                strokeWeight: 2,
+                editable: true,
+                draggable: true
+            });
+            
+            polygon.setMap(map);
+            currentPolygonCoords = polygonCoords;
+            
+            // Add listeners for polygon changes
+            google.maps.event.addListener(polygon.getPath(), 'set_at', function() {
+                currentPolygonCoords = polygon.getPath().getArray();
+                if (currentPolygonCoords.length >= 3) {
+                    updateAreaInfo();
+                }
+            });
+
+            google.maps.event.addListener(polygon.getPath(), 'insert_at', function() {
+                currentPolygonCoords = polygon.getPath().getArray();
+                if (currentPolygonCoords.length >= 3) {
+                    updateAreaInfo();
+                }
+            });
+
+            google.maps.event.addListener(polygon.getPath(), 'remove_at', function() {
+                currentPolygonCoords = polygon.getPath().getArray();
+                if (currentPolygonCoords.length >= 3) {
+                    updateAreaInfo();
+                }
+            });
+            
+            // Fit map to polygon
+            const bounds = new google.maps.LatLngBounds();
+            polygonCoords.forEach(coord => bounds.extend(coord));
+            map.fitBounds(bounds);
+            
+            document.getElementById('map-info').style.display = 'block';
+            updateAreaInfo();
+        }
+
+        // Load clients from Firebase
+        async function loadClients() {
+            try {
+                console.log('Loading clients from Firebase...');
+                const querySnapshot = await window.firebaseFunctions.getDocs(window.firebaseFunctions.query(window.firebaseFunctions.collection(window.db, 'clients'), window.firebaseFunctions.orderBy('nome')));
+                console.log('Query snapshot size:', querySnapshot.size);
+                
+                clients = [];
+                querySnapshot.forEach((doc) => {
+                    console.log('Client found:', doc.id, doc.data());
+                    clients.push({ id: doc.id, ...doc.data() });
+                });
+                
+                console.log('Total clients loaded:', clients.length);
+                filteredClients = [...clients];
+                updateStats();
+                renderClients();
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                console.error('Error details:', error.message, error.code);
+                alert(`Errore nel caricamento dei clienti: ${error.message}`);
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            document.getElementById('total-clients').textContent = clients.length;
+            document.getElementById('displayed-clients').textContent = filteredClients.length;
+        }
+
+        // Helper function to get client completion status
+        function getClientCompletionStatus(client) {
+            if (!client.terreni || client.terreni.length === 0) {
+                return { icon: '', title: 'Nessun terreno' };
+            }
+            
+            let totalTerreni = client.terreni.length;
+            let terreniCompletati = 0;
+            
+            client.terreni.forEach(terreno => {
+                // Check if terreno is vendemmiato for current year
+                if (terreno.vendemmiati && terreno.vendemmiati[currentYear] === true) {
+                    terreniCompletati++;
+                } else if (terreno.vendemmiato === true && currentYear === new Date().getFullYear()) {
+                    // Support old format for current year
+                    terreniCompletati++;
+                }
+            });
+            
+            if (terreniCompletati === 0) {
+                // Pallino rosso - tutto da iniziare
+                return { 
+                    icon: '🔴', 
+                    title: `Da vendemmiare (0/${totalTerreni} completati)`,
+                    color: '#dc3545'
+                };
+            } else if (terreniCompletati === totalTerreni) {
+                // Pallino verde - tutto completato
+                return { 
+                    icon: '🟢', 
+                    title: `Vendemmia completata (${totalTerreni}/${totalTerreni})`,
+                    color: '#28a745'
+                };
+            } else {
+                // Pallino giallo - in corso
+                return { 
+                    icon: '🟡', 
+                    title: `In corso (${terreniCompletati}/${totalTerreni} completati)`,
+                    color: '#ffc107'
+                };
+            }
+        }
+
+        // Render clients table
+        function renderClients() {
+            const container = document.getElementById('clients-container');
+            
+            if (filteredClients.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Nessun cliente trovato</h3>
+                        <p>Aggiungi il tuo primo cliente utilizzando il pulsante "Aggiungi Cliente".</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredClients.map(client => {
+                const status = getClientCompletionStatus(client);
+                return `
+                    <div class="table-row">
+                        <div class="client-name">
+                            <span style="margin-right: 8px; font-size: 1.2em;" title="${status.title}">${status.icon}</span>
+                            ${client.nome}
+                        </div>
+                        <div class="client-info">${client.cognome}</div>
+                        <div class="client-info">${client.indirizzo || '-'}</div>
+                        <div class="client-info">${client.cellulare || '-'}</div>
+                        <div class="actions">
+                            <button class="action-btn btn-terreni" onclick="manageTerreni('${client.id}')">🏞️ Terreni</button>
+                            <button class="action-btn btn-edit" onclick="editClient('${client.id}')">✏️ Modifica</button>
+                            <button class="action-btn btn-delete" onclick="deleteClient('${client.id}')">🗑️ Elimina</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Filter clients
+        function filterClients() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            filteredClients = clients.filter(client => 
+                client.nome.toLowerCase().includes(searchTerm) ||
+                client.cognome.toLowerCase().includes(searchTerm) ||
+                (client.indirizzo && client.indirizzo.toLowerCase().includes(searchTerm)) ||
+                (client.cellulare && client.cellulare.toLowerCase().includes(searchTerm)) ||
+                (client.email && client.email.toLowerCase().includes(searchTerm))
+            );
+            updateStats();
+            renderClients();
+        }
+
+        // Clear search
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            filteredClients = [...clients];
+            updateStats();
+            renderClients();
+        }
+
+        // Open add modal
+        function openAddModal() {
+            document.getElementById('modal-title').textContent = '➕ Aggiungi Nuovo Cliente';
+            document.getElementById('client-form').reset();
+            document.getElementById('client-id').value = '';
+            document.getElementById('client-modal').style.display = 'block';
+        }
+
+        // Edit client
+        async function editClient(clientId) {
+            try {
+                const clientRef = window.firebaseFunctions.doc(window.db, 'clients', clientId);
+                const clientSnap = await window.firebaseFunctions.getDoc(clientRef);
+                
+                if (clientSnap.exists()) {
+                    const client = clientSnap.data();
+                    
+                    document.getElementById('modal-title').textContent = '✏️ Modifica Cliente';
+                    document.getElementById('client-id').value = clientId;
+                    document.getElementById('nome').value = client.nome || '';
+                    document.getElementById('cognome').value = client.cognome || '';
+                    document.getElementById('indirizzo').value = client.indirizzo || '';
+                    document.getElementById('cellulare').value = client.cellulare || '';
+                    
+                    document.getElementById('client-modal').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading client for edit:', error);
+                alert('❌ Errore nel caricamento del cliente');
+            }
+        }
+
+        // Manage terreni
+        async function manageTerreni(clientId) {
+            try {
+                const clientRef = window.firebaseFunctions.doc(window.db, 'clients', clientId);
+                const clientSnap = await window.firebaseFunctions.getDoc(clientRef);
+                
+                if (clientSnap.exists()) {
+                    const client = clientSnap.data();
+                    
+                    // Check if we're switching to a different client BEFORE updating the ID
+                    const previousClientId = window.currentClientId;
+                    const isDifferentClient = !previousClientId || previousClientId !== clientId;
+                    
+                    console.log(`Opening terreni modal - Previous: ${previousClientId}, New: ${clientId}, Different: ${isDifferentClient}`);
+                    
+                    // Set current client for terreno management
+                    window.currentClientId = clientId;
+                    window.currentClientName = `${client.nome} ${client.cognome}`;
+                    
+                    // Update modal title with client name
+                    document.getElementById('terreni-client-name').textContent = `Cliente: ${window.currentClientName}`;
+                    
+                    // Update year display
+                    document.getElementById('terreni-year-display').textContent = currentYear;
+                    
+                    // Always load terreni for different client or first time
+                    if (isDifferentClient) {
+                        console.log(`Loading new terreni for client: ${clientId}, Count: ${client.terreni ? client.terreni.length : 0}`);
+                        loadTerreni(client.terreni || []);
+                        terreniModified = false;
+                    } else {
+                        console.log(`Using cached terreni for same client: ${clientId}`);
+                    }
+                    
+                    // Show terreni modal
+                    document.getElementById('terreni-modal').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading client for terreni:', error);
+                alert('❌ Errore nel caricamento dei terreni del cliente');
+            }
+        }
+
+        // Delete client
+        async function deleteClient(clientId) {
+            if (!confirm('Sei sicuro di voler eliminare questo cliente?')) {
+                return;
+            }
+
+            try {
+                await window.firebaseFunctions.deleteDoc(window.firebaseFunctions.doc(window.db, 'clients', clientId));
+                alert('✅ Cliente eliminato con successo!');
+                loadClients();
+            } catch (error) {
+                console.error('Error deleting client:', error);
+                alert('❌ Errore nell\'eliminazione del cliente');
+            }
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('client-modal').style.display = 'none';
+        }
+
+        // Form submission
+        document.getElementById('client-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('client-id').value;
+            const clientData = {
+                nome: document.getElementById('nome').value.trim(),
+                cognome: document.getElementById('cognome').value.trim(),
+                indirizzo: document.getElementById('indirizzo').value.trim(),
+                cellulare: document.getElementById('cellulare').value.trim(),
+                terreni: [],
+                updatedAt: new Date()
+            };
+
+            try {
+                console.log('Saving client data:', clientData);
+                
+                if (clientId) {
+                    // Update existing client
+                    console.log('Updating existing client:', clientId);
+                    const clientRef = window.firebaseFunctions.doc(window.db, 'clients', clientId);
+                    await window.firebaseFunctions.updateDoc(clientRef, clientData);
+                    alert('✅ Cliente aggiornato con successo!');
+                } else {
+                    // Add new client
+                    console.log('Adding new client');
+                    clientData.createdAt = new Date();
+                    const docRef = await window.firebaseFunctions.addDoc(window.firebaseFunctions.collection(window.db, 'clients'), clientData);
+                    console.log('Client added with ID:', docRef.id);
+                    alert('✅ Cliente aggiunto con successo!');
+                }
+                
+                closeModal();
+                loadClients();
+            } catch (error) {
+                console.error('Error saving client:', error);
+                console.error('Error details:', error.message, error.code);
+                alert(`❌ Errore nel salvataggio del cliente: ${error.message}`);
+            }
+        });
+
+        // Leggi anno selezionato da Firestore
+        async function getAnnoSelezionato() {
+            try {
+                const annoRef = doc(db, 'preferenze', 'annoSelezionato');
+                const annoSnap = await getDoc(annoRef);
+                if (annoSnap.exists()) {
+                    const data = annoSnap.data();
+                    console.log(`Anno selezionato da Firestore: ${data.anno}`);
+                    return data.anno;
+                } else {
+                    // Se non esiste, usa l'anno corrente
+                    const defaultYear = new Date().getFullYear();
+                    console.log(`Nessun anno trovato, uso anno corrente: ${defaultYear}`);
+                    return defaultYear;
+                }
+            } catch (error) {
+                console.error('Error getting anno:', error);
+                // Fallback all'anno corrente
+                return new Date().getFullYear();
+            }
+        }
+
+        // Terreni management functions
+        let currentTerreni = [];
+        let terreniModified = false;
+        let currentYear = new Date().getFullYear(); // Will be overwritten by getAnnoSelezionato()
+
+        function loadTerreni(terreni) {
+            console.log('Loading terreni from database:', terreni);
+            currentTerreni = [...terreni];
+            
+            // Log each terreno loaded
+            currentTerreni.forEach((terreno, index) => {
+                console.log(`Loaded terreno ${index}:`, {
+                    nome: terreno.nome,
+                    tipoUva: terreno.tipoUva,
+                    morfologia: terreno.morfologia,
+                    tipoPalo: terreno.tipoPalo,
+                    ettari: terreno.ettari
+                });
+            });
+            
+            renderTerreni();
+        }
+
+        function renderTerreni() {
+            const container = document.getElementById('terreni-container');
+            
+            if (currentTerreni.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Nessun terreno trovato</h3>
+                        <p>Aggiungi il primo terreno per questo cliente.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="terreni-table">
+                    <div class="terreni-header">
+                        <div class="col-nome">Nome Campo</div>
+                        <div class="col-uva">Varietà Uva</div>
+                        <div class="col-morfologia">Morfologia</div>
+                        <div class="col-palo">Tipo Palo</div>
+                        <div class="col-ettari">Ha</div>
+                        <div class="col-mappa">Mappa</div>
+                        <div class="col-stato">Vendemmiato</div>
+                        <div class="col-azioni">Azioni</div>
+                    </div>
+                    ${currentTerreni.map((terreno, index) => `
+                        <div class="terreno-row">
+                            <div class="col-nome">
+                                <span class="terreno-name">${terreno.nome || 'Senza nome'}</span>
+                            </div>
+                            <div class="col-uva">
+                                <span class="terreno-uva">${terreno.tipoUva || '-'}</span>
+                            </div>
+                            <div class="col-morfologia">
+                                <span class="terreno-morfologia">${terreno.morfologia || '-'}</span>
+                            </div>
+                            <div class="col-palo">
+                                <span class="terreno-palo">${terreno.tipoPalo || '-'}</span>
+                            </div>
+                            <div class="col-ettari">
+                                <span class="terreno-ettari">${terreno.ettari ? terreno.ettari.toFixed(2) : '0.00'}</span>
+                                ${hasZoneEscluse(terreno) ? `<span style="color: #ffc107; margin-left: 5px; cursor: help;" title="Zone escluse presenti - Ha effettivi: ${calculateEffectiveHa(terreno).toFixed(2)}">⚠️</span>` : ''}
+                            </div>
+                            <div class="col-mappa">
+                                ${terreno.polygonCoords && terreno.polygonCoords.length > 0 ? 
+                                    '<span class="map-indicator" title="Confini tracciati">📍</span>' : 
+                                    '<span class="map-indicator no-map" title="Nessun confine tracciato">❌</span>'
+                                }
+                            </div>
+                            <div class="col-stato">
+                                <label style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                    <input type="checkbox" 
+                                           ${isVendemmiato(terreno) ? 'checked' : ''} 
+                                           onchange="toggleVendemmiato(${index})"
+                                           style="width: 20px; height: 20px; cursor: pointer;"
+                                           title="${isVendemmiato(terreno) ? 'Vendemmia completata per anno ' + currentYear : 'Da vendemmiare per anno ' + currentYear}">
+                                </label>
+                            </div>
+                            <div class="col-azioni">
+                                <button onclick="editTerreno(${index})" class="btn-edit-small" title="Modifica">✏️</button>
+                                <button onclick="deleteTerreno(${index})" class="btn-delete-small" title="Elimina">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function openAddTerrenoModal() {
+            document.getElementById('terreno-modal-title').textContent = '➕ Aggiungi Nuovo Terreno';
+            document.getElementById('terreno-form').reset();
+            document.getElementById('terreno-index').value = '';
+            document.getElementById('terreno-modal').style.display = 'block';
+            
+            // Verify submit button is visible
+            const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
+            console.log('Submit button in add mode:', submitBtn);
+            if (submitBtn) {
+                submitBtn.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '💾 Salva Terreno';
+            }
+            
+            // Initialize map
+            setTimeout(() => {
+                initMap();
+                clearPolygon();
+                document.getElementById('map-info').style.display = 'none';
+                
+                // Add listener for manual area changes (remove existing first)
+                const ettariInput = document.getElementById('terreno-ettari');
+                ettariInput.removeEventListener('input', updateAreaInfo);
+                ettariInput.addEventListener('input', updateAreaInfo);
+            }, 100);
+        }
+
+        function editTerreno(index) {
+            const terreno = currentTerreni[index];
+            
+            console.log('Loading terreno for edit:', terreno);
+            console.log('Terreno details:', {
+                nome: terreno.nome,
+                tipoUva: terreno.tipoUva,
+                morfologia: terreno.morfologia,
+                tipoPalo: terreno.tipoPalo,
+                ettari: terreno.ettari,
+                vendemmiato: terreno.vendemmiato
+            });
+            
+            document.getElementById('terreno-modal-title').textContent = '✏️ Modifica Terreno';
+            document.getElementById('terreno-index').value = index;
+            document.getElementById('terreno-nome').value = terreno.nome || '';
+            document.getElementById('terreno-ettari').value = terreno.ettari || '';
+            document.getElementById('terreno-tipoUva').value = terreno.tipoUva || '';
+            document.getElementById('terreno-morfologia').value = terreno.morfologia || '';
+            document.getElementById('terreno-tipoPalo').value = terreno.tipoPalo || '';
+            
+            document.getElementById('terreno-modal').style.display = 'block';
+            
+            // Verify submit button is visible
+            const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
+            console.log('Submit button in edit mode:', submitBtn);
+            if (submitBtn) {
+                submitBtn.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '💾 Salva Terreno';
+            }
+            
+            // Initialize map and load existing polygon
+            setTimeout(() => {
+                initMap();
+                if (terreno.polygonCoords && terreno.polygonCoords.length > 0) {
+                    loadExistingPolygon(terreno.polygonCoords);
+                } else {
+                    clearPolygon();
+                    document.getElementById('map-info').style.display = 'none';
+                }
+                
+                // Add listener for manual area changes (remove existing first)
+                const ettariInput = document.getElementById('terreno-ettari');
+                ettariInput.removeEventListener('input', updateAreaInfo);
+                ettariInput.addEventListener('input', updateAreaInfo);
+            }, 100);
+        }
+
+        // Helper function to check if terreno is vendemmiato for current year
+        function isVendemmiato(terreno) {
+            // Support both old format (vendemmiato: true) and new format (vendemmiati: {2025: true})
+            if (terreno.vendemmiati && typeof terreno.vendemmiati === 'object') {
+                // New format: check for the specific year
+                return terreno.vendemmiati[currentYear] === true;
+            } else if (terreno.vendemmiato === true) {
+                // Old format: migrate to new format on first check
+                return true;
+            }
+            return false;
+        }
+
+        // Toggle vendemmiato status for current year
+        function toggleVendemmiato(index) {
+            const terreno = currentTerreni[index];
+            
+            // Migrate old format to new format if needed
+            if (terreno.vendemmiato !== undefined && !terreno.vendemmiati) {
+                terreno.vendemmiati = {};
+                if (terreno.vendemmiato === true) {
+                    terreno.vendemmiati[currentYear] = true;
+                }
+                delete terreno.vendemmiato;
+            }
+            
+            // Initialize structures
+            if (!terreno.vendemmiati) {
+                terreno.vendemmiati = {};
+            }
+            if (!terreno.zoneEscluse) {
+                terreno.zoneEscluse = {};
+            }
+            if (!terreno.ettariVendemmiati) {
+                terreno.ettariVendemmiati = {};
+            }
+            
+            const wasVendemmiato = terreno.vendemmiati[currentYear] === true;
+            
+            if (!wasVendemmiato) {
+                // Spuntando il checkbox, apri modal zone escluse
+                terreno.vendemmiati[currentYear] = true;
+                
+                // Se non ci sono zone escluse, usa superficie totale
+                if (!terreno.zoneEscluse[currentYear] || terreno.zoneEscluse[currentYear].length === 0) {
+                    terreno.ettariVendemmiati[currentYear] = terreno.ettari || 0;
+                }
+                
+                terreniModified = true;
+                openZoneEscluseModal(index);
+            } else {
+                // Deselezionando, rimuovi flag (mantieni zone escluse e ettari per storico)
+                terreno.vendemmiati[currentYear] = false;
+                terreniModified = true;
+                renderTerreni();
+            }
+        }
+
+        function deleteTerreno(index) {
+            if (!confirm('Sei sicuro di voler eliminare questo terreno?')) {
+                return;
+            }
+            
+            currentTerreni.splice(index, 1);
+            terreniModified = true;
+            renderTerreni();
+        }
+
+        // ========== ZONE ESCLUSE FUNCTIONS ==========
+        
+        function openZoneEscluseModal(terrenoIndex) {
+            currentZoneEscluseIndex = terrenoIndex;
+            const terreno = currentTerreni[terrenoIndex];
+            
+            // Setup modal info
+            document.getElementById('ze-year').textContent = currentYear;
+            document.getElementById('ze-terreno-name').textContent = terreno.nome || 'Senza nome';
+            document.getElementById('ze-total-ha').textContent = (terreno.ettari || 0).toFixed(2);
+            
+            // Show modal
+            document.getElementById('zone-escluse-modal').style.display = 'block';
+            
+            // Initialize map
+            setTimeout(() => {
+                initMapZoneEscluse(terreno);
+            }, 100);
+        }
+        
+        function initMapZoneEscluse(terreno) {
+            if (typeof google === 'undefined' || !google.maps) {
+                alert('Google Maps non disponibile');
+                return;
+            }
+            
+            const mapElement = document.getElementById('map-zone-escluse');
+            
+            // Default center
+            const defaultCenter = { lat: 44.4949, lng: 11.3426 };
+            
+            // Create map
+            mapZoneEscluse = new google.maps.Map(mapElement, {
+                zoom: 18,
+                center: defaultCenter,
+                mapTypeId: google.maps.MapTypeId.SATELLITE
+            });
+            
+            // Clear previous polygons
+            zoneEsclusePolygons = [];
+            mainPolygonZE = null;
+            
+            // Draw main polygon (green) if exists
+            if (terreno.polygonCoords && terreno.polygonCoords.length > 0) {
+                mainPolygonZE = new google.maps.Polygon({
+                    paths: terreno.polygonCoords,
+                    fillColor: '#28a745',
+                    fillOpacity: 0.3,
+                    strokeColor: '#28a745',
+                    strokeWeight: 2,
+                    editable: false,
+                    clickable: false
+                });
+                mainPolygonZE.setMap(mapZoneEscluse);
+                
+                // Fit bounds to main polygon
+                const bounds = new google.maps.LatLngBounds();
+                terreno.polygonCoords.forEach(coord => {
+                    const latLng = coord.lat ? coord : { lat: coord.lat(), lng: coord.lng() };
+                    bounds.extend(latLng);
+                });
+                mapZoneEscluse.fitBounds(bounds);
+            }
+            
+            // Load existing zone escluse for current year (red polygons)
+            if (terreno.zoneEscluse && terreno.zoneEscluse[currentYear]) {
+                terreno.zoneEscluse[currentYear].forEach(zona => {
+                    const polygon = new google.maps.Polygon({
+                        paths: zona.coords,
+                        fillColor: '#dc3545',
+                        fillOpacity: 0.5,
+                        strokeColor: '#dc3545',
+                        strokeWeight: 2,
+                        editable: true,
+                        draggable: true
+                    });
+                    polygon.setMap(mapZoneEscluse);
+                    zoneEsclusePolygons.push(polygon);
+                    
+                    // Add listeners for polygon changes
+                    google.maps.event.addListener(polygon.getPath(), 'set_at', () => updateZoneEscluseInfo(terreno));
+                    google.maps.event.addListener(polygon.getPath(), 'insert_at', () => updateZoneEscluseInfo(terreno));
+                    google.maps.event.addListener(polygon.getPath(), 'remove_at', () => updateZoneEscluseInfo(terreno));
+                });
+            }
+            
+            // Add click listener for drawing
+            mapZoneEscluse.addListener('click', function(event) {
+                if (isDrawingZoneEsclusa) {
+                    addPointToZoneEsclusa(event.latLng);
+                }
+            });
+            
+            updateZoneEscluseInfo(terreno);
+        }
+        
+        function startDrawingZoneEscluse() {
+            isDrawingZoneEsclusa = !isDrawingZoneEsclusa;
+            const btn = document.getElementById('btn-draw-zone-esclusa');
+            
+            if (isDrawingZoneEsclusa) {
+                btn.textContent = '⏹️ Stop Tracciamento';
+                btn.style.backgroundColor = '#dc3545';
+                document.getElementById('map-zone-escluse').style.cursor = 'crosshair';
+                
+                // Create new polygon with initialized MVCArray path
+                const newPath = new google.maps.MVCArray();
+                const newPolygon = new google.maps.Polygon({
+                    path: newPath,
+                    fillColor: '#dc3545',
+                    fillOpacity: 0.5,
+                    strokeColor: '#dc3545',
+                    strokeWeight: 2,
+                    editable: true,
+                    draggable: true
+                });
+                newPolygon.setMap(mapZoneEscluse);
+                zoneEsclusePolygons.push(newPolygon);
+                
+                // Add listeners for polygon changes
+                google.maps.event.addListener(newPath, 'set_at', () => updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]));
+                google.maps.event.addListener(newPath, 'insert_at', () => updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]));
+                google.maps.event.addListener(newPath, 'remove_at', () => updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]));
+            } else {
+                btn.textContent = '✏️ Traccia Zona Esclusa';
+                btn.style.backgroundColor = '#28a745';
+                document.getElementById('map-zone-escluse').style.cursor = 'default';
+            }
+        }
+        
+        function addPointToZoneEsclusa(latLng) {
+            if (!isDrawingZoneEsclusa || zoneEsclusePolygons.length === 0) return;
+            
+            const currentPolygon = zoneEsclusePolygons[zoneEsclusePolygons.length - 1];
+            const path = currentPolygon.getPath();
+            
+            if (path) {
+                path.push(latLng);
+                updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]);
+            }
+        }
+        
+        function clearLastZoneEsclusa() {
+            if (zoneEsclusePolygons.length === 0) {
+                alert('Nessuna zona esclusa da cancellare');
+                return;
+            }
+            
+            const lastPolygon = zoneEsclusePolygons.pop();
+            lastPolygon.setMap(null);
+            
+            updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]);
+        }
+        
+        function clearAllZoneEscluse() {
+            if (zoneEsclusePolygons.length === 0) {
+                return;
+            }
+            
+            if (confirm('Sei sicuro di voler cancellare tutte le zone escluse?')) {
+                zoneEsclusePolygons.forEach(polygon => polygon.setMap(null));
+                zoneEsclusePolygons = [];
+                
+                updateZoneEscluseInfo(currentTerreni[currentZoneEscluseIndex]);
+            }
+        }
+        
+        function updateZoneEscluseInfo(terreno) {
+            let totalExcludedHa = 0;
+            let validPolygonsCount = 0;
+            
+            zoneEsclusePolygons.forEach(polygon => {
+                const path = polygon.getPath();
+                if (path.getLength() >= 3) {
+                    const area = google.maps.geometry.spherical.computeArea(path.getArray());
+                    totalExcludedHa += area / 10000; // Convert to Ha
+                    validPolygonsCount++;
+                }
+            });
+            
+            const totalHa = terreno.ettari || 0;
+            const effectiveHa = Math.max(0, totalHa - totalExcludedHa);
+            
+            document.getElementById('ze-count').textContent = validPolygonsCount;
+            document.getElementById('ze-excluded-ha').textContent = totalExcludedHa.toFixed(2);
+            document.getElementById('ze-effective-ha').textContent = effectiveHa.toFixed(2);
+        }
+        
+        function saveZoneEscluse() {
+            const terreno = currentTerreni[currentZoneEscluseIndex];
+            
+            // Save red polygons to terreno structure
+            if (!terreno.zoneEscluse) {
+                terreno.zoneEscluse = {};
+            }
+            
+            terreno.zoneEscluse[currentYear] = zoneEsclusePolygons
+                .filter(polygon => polygon.getPath().getLength() >= 3)
+                .map(polygon => {
+                    const coords = polygon.getPath().getArray().map(c => ({
+                        lat: c.lat(),
+                        lng: c.lng()
+                    }));
+                    const area = google.maps.geometry.spherical.computeArea(polygon.getPath().getArray()) / 10000;
+                    return { coords, area };
+                });
+            
+            // *** NUOVA FUNZIONALITÀ: Salva gli ettari vendemmiati effettivi ***
+            if (!terreno.ettariVendemmiati) {
+                terreno.ettariVendemmiati = {};
+            }
+            
+            // Calcola superficie effettiva vendemmiata (totale - esclusa)
+            let totalExcludedHa = 0;
+            terreno.zoneEscluse[currentYear].forEach(zona => {
+                totalExcludedHa += zona.area || 0;
+            });
+            
+            const effectiveHa = Math.max(0, (terreno.ettari || 0) - totalExcludedHa);
+            terreno.ettariVendemmiati[currentYear] = effectiveHa;
+            
+            console.log(`Saved ${terreno.zoneEscluse[currentYear].length} zone escluse for ${currentYear}`);
+            console.log(`Superficie totale: ${terreno.ettari} Ha, Esclusa: ${totalExcludedHa.toFixed(2)} Ha, Effettiva vendemmiata: ${effectiveHa.toFixed(2)} Ha`);
+            
+            terreniModified = true;
+            
+            closeZoneEscluseModal();
+            renderTerreni();
+        }
+        
+        function closeZoneEscluseModal() {
+            // Se l'utente chiude senza salvare zone escluse, salva comunque gli ettari totali
+            if (currentZoneEscluseIndex !== null && currentZoneEscluseIndex !== undefined) {
+                const terreno = currentTerreni[currentZoneEscluseIndex];
+                
+                // Se non ci sono zone escluse salvate ma il terreno è marcato come vendemmiato
+                if (terreno.vendemmiati && terreno.vendemmiati[currentYear] === true) {
+                    if (!terreno.ettariVendemmiati) {
+                        terreno.ettariVendemmiati = {};
+                    }
+                    // Se non è già stato salvato un valore, usa superficie totale
+                    if (terreno.ettariVendemmiati[currentYear] === undefined) {
+                        terreno.ettariVendemmiati[currentYear] = terreno.ettari || 0;
+                        terreniModified = true;
+                        console.log(`Auto-saved ettari vendemmiati: ${terreno.ettariVendemmiati[currentYear]} Ha (superficie totale, nessuna zona esclusa)`);
+                    }
+                }
+            }
+            
+            document.getElementById('zone-escluse-modal').style.display = 'none';
+            isDrawingZoneEsclusa = false;
+            
+            // Clean up
+            zoneEsclusePolygons.forEach(polygon => polygon.setMap(null));
+            zoneEsclusePolygons = [];
+            if (mainPolygonZE) {
+                mainPolygonZE.setMap(null);
+                mainPolygonZE = null;
+            }
+            mapZoneEscluse = null;
+            
+            renderTerreni();
+        }
+        
+        // Helper function to check if terreno has zone escluse for current year
+        function hasZoneEscluse(terreno) {
+            return terreno.zoneEscluse && 
+                   terreno.zoneEscluse[currentYear] && 
+                   terreno.zoneEscluse[currentYear].length > 0;
+        }
+        
+        // Helper function to calculate effective Ha (total - excluded)
+        function calculateEffectiveHa(terreno) {
+            let totalHa = terreno.ettari || 0;
+            let excludedHa = 0;
+            
+            if (terreno.zoneEscluse && terreno.zoneEscluse[currentYear]) {
+                excludedHa = terreno.zoneEscluse[currentYear].reduce((sum, zona) => sum + (zona.area || 0), 0);
+            }
+            
+            return Math.max(0, totalHa - excludedHa);
+        }
+        
+        // ========== END ZONE ESCLUSE FUNCTIONS ==========
+
+        async function closeTerreniModal() {
+            // Auto-save terreni when closing if there were any changes
+            if (terreniModified) {
+                try {
+                    await saveTerreniToFirebase();
+                    console.log('Terreni auto-saved on modal close');
+                } catch (error) {
+                    console.error('Error auto-saving on close:', error);
+                    alert('⚠️ Errore nel salvataggio automatico. Riprova.');
+                    return; // Don't close modal if save failed
+                }
+            }
+            document.getElementById('terreni-modal').style.display = 'none';
+        }
+
+        function closeTerrenoModal() {
+            document.getElementById('terreno-modal').style.display = 'none';
+        }
+
+        // Save terreni to Firebase (internal function)
+        async function saveTerreniToFirebase() {
+            try {
+                console.log('Saving terreni to Firebase:', currentTerreni);
+                console.log('Current client ID:', window.currentClientId);
+                
+                // Log each terreno in detail
+                currentTerreni.forEach((terreno, index) => {
+                    console.log(`Terreno ${index}:`, {
+                        nome: terreno.nome,
+                        tipoUva: terreno.tipoUva,
+                        morfologia: terreno.morfologia,
+                        tipoPalo: terreno.tipoPalo,
+                        ettari: terreno.ettari,
+                        polygonCoords: terreno.polygonCoords ? terreno.polygonCoords.length : 0
+                    });
+                });
+                
+                const clientRef = window.firebaseFunctions.doc(window.db, 'clients', window.currentClientId);
+                await window.firebaseFunctions.updateDoc(clientRef, {
+                    terreni: currentTerreni,
+                    updatedAt: new Date()
+                });
+                
+                // Verify the save was successful
+                const updatedDoc = await window.firebaseFunctions.getDoc(clientRef);
+                const savedData = updatedDoc.data();
+                console.log('Verification - saved terreni:', savedData.terreni);
+                
+                console.log('Terreni salvati automaticamente in Firebase');
+            } catch (error) {
+                console.error('Error auto-saving terreni:', error);
+                throw error;
+            }
+        }
+
+        // Save terreni to Firebase (manual save button)
+        async function saveTerreni() {
+            try {
+                await saveTerreniToFirebase();
+                alert('✅ Terreni salvati con successo!');
+                closeTerreniModal();
+                // Don't reload clients - keep current data
+            } catch (error) {
+                console.error('Error saving terreni:', error);
+                alert('❌ Errore nel salvataggio dei terreni');
+            }
+        }
+
+        // Terreno form submission
+        document.getElementById('terreno-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Form submitted!');
+            
+            // Check for surface difference before saving
+            if (polygon && currentPolygonCoords.length >= 3) {
+                const area = google.maps.geometry.spherical.computeArea(currentPolygonCoords);
+                const calculatedArea = area / 10000;
+                const manualArea = parseFloat(document.getElementById('terreno-ettari').value) || 0;
+                
+                if (manualArea > 0 && Math.abs(calculatedArea - manualArea) > 0.01) {
+                    const confirmed = confirm(
+                        `⚠️ Superficie diversa rilevata!\n\n` +
+                        `Superficie manuale: ${manualArea.toFixed(2)} Ha\n` +
+                        `Superficie calcolata dalla mappa: ${calculatedArea.toFixed(2)} Ha\n\n` +
+                        `Vuoi sostituire la superficie manuale con quella calcolata dalla mappa?`
+                    );
+                    
+                    if (confirmed) {
+                        document.getElementById('terreno-ettari').value = calculatedArea.toFixed(2);
+                    }
+                }
+            }
+            
+            const index = document.getElementById('terreno-index').value;
+            const terrenoData = {
+                nome: document.getElementById('terreno-nome').value.trim(),
+                ettari: parseFloat(document.getElementById('terreno-ettari').value) || 0,
+                tipoUva: document.getElementById('terreno-tipoUva').value.trim(),
+                morfologia: document.getElementById('terreno-morfologia').value.trim(),
+                tipoPalo: document.getElementById('terreno-tipoPalo').value.trim(),
+                polygonCoords: currentPolygonCoords.length > 0 ? currentPolygonCoords.map(coord => ({
+                    lat: coord.lat(),
+                    lng: coord.lng()
+                })) : []
+            };
+            
+            // Preserve vendemmiati status (multi-year) if editing existing terreno
+            if (index !== '') {
+                const existingTerreno = currentTerreni[parseInt(index)];
+                // Preserve the entire vendemmiati object
+                if (existingTerreno.vendemmiati) {
+                    terrenoData.vendemmiati = existingTerreno.vendemmiati;
+                } else if (existingTerreno.vendemmiato !== undefined) {
+                    // Migrate old format to new format
+                    terrenoData.vendemmiati = {};
+                    if (existingTerreno.vendemmiato === true) {
+                        terrenoData.vendemmiati[currentYear] = true;
+                    }
+                } else {
+                    terrenoData.vendemmiati = {};
+                }
+            } else {
+                // New terreno defaults to empty vendemmiati object
+                terrenoData.vendemmiati = {};
+            }
+
+            console.log('Saving terreno data:', terrenoData);
+            console.log('Terreno data details:', {
+                nome: terrenoData.nome,
+                tipoUva: terrenoData.tipoUva,
+                morfologia: terrenoData.morfologia,
+                tipoPalo: terrenoData.tipoPalo,
+                ettari: terrenoData.ettari
+            });
+
+            if (index !== '') {
+                // Edit existing terreno
+                currentTerreni[parseInt(index)] = terrenoData;
+            } else {
+                // Add new terreno
+                currentTerreni.push(terrenoData);
+            }
+            
+            terreniModified = true;
+            
+            try {
+                // Show saving feedback
+                const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
+                console.log('Submit button found:', submitBtn);
+                const originalText = submitBtn ? submitBtn.textContent : 'Salva';
+                if (submitBtn) {
+                    submitBtn.textContent = '💾 Salvando...';
+                    submitBtn.disabled = true;
+                }
+                
+                // Auto-save to Firebase
+                await saveTerreniToFirebase();
+                
+                // Show success feedback
+                if (submitBtn) {
+                    submitBtn.textContent = '✅ Salvato!';
+                }
+                setTimeout(() => {
+                    renderTerreni();
+                    closeTerrenoModal();
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error saving terreno:', error);
+                alert('❌ Errore nel salvataggio del terreno. Riprova.');
+                
+                // Reset button
+                const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            }
+        });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const clientModal = document.getElementById('client-modal');
+            const terreniModal = document.getElementById('terreni-modal');
+            const terrenoModal = document.getElementById('terreno-modal');
+            const zoneEscluseModal = document.getElementById('zone-escluse-modal');
+            
+            if (event.target == clientModal) {
+                closeModal();
+            }
+            if (event.target == terreniModal) {
+                closeTerreniModal();
+            }
+            if (event.target == terrenoModal) {
+                closeTerrenoModal();
+            }
+            if (event.target == zoneEscluseModal) {
+                closeZoneEscluseModal();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Vendemmia Meccanizzata</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #B0E0E6 0%, #228B22 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo {
+            margin-bottom: 30px;
+        }
+
+        .logo img {
+            width: 180px;
+            height: 180px;
+            margin-bottom: 20px;
+        }
+
+        .logo h1 {
+            color: #333333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+        }
+
+        .logo .subtitle {
+            color: #555555;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #2E8B57;
+        }
+
+        .login-btn {
+            background-color: #2E8B57;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin: 20px 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .login-btn:hover {
+            background-color: #256E4A;
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .register-link {
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .register-link a {
+            color: #2E8B57;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            margin: 10px 0;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #8B4513;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <img src="icons/icon-512x512.png" alt="GFV Logo">
+            <h1>GFV</h1>
+            <div class="subtitle">Global Farm View</div>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required placeholder="Inserisci la tua email">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="Inserisci la tua password">
+            </div>
+
+            <button type="submit" class="login-btn" id="login-btn">
+                Accedi
+            </button>
+
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <p>Accesso in corso...</p>
+            </div>
+        </form>
+
+        <div class="register-link">
+            <p>Non hai un account? <a href="#" onclick="showRegisterForm()">Registrati</a></p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
+            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
+            projectId: "vendemmia-meccanizzata",
+            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
+            messagingSenderId: "745067977805",
+            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
+            measurementId: "G-6T53WV1GD3"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // DOM elements
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const loadingDiv = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+
+        // Utility functions
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        function setLoading(loading) {
+            if (loading) {
+                loginBtn.disabled = true;
+                loadingDiv.style.display = 'block';
+                loginBtn.textContent = 'Accesso in corso...';
+            } else {
+                loginBtn.disabled = false;
+                loadingDiv.style.display = 'none';
+                loginBtn.textContent = 'Accedi';
+            }
+        }
+
+        // Login function
+        async function login(email, password) {
+            try {
+                setLoading(true);
+                hideMessages();
+                
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                console.log('Login successful:', userCredential.user);
+                
+                showSuccess('Accesso riuscito! Reindirizzamento...');
+                
+                // Redirect to home after successful login
+                setTimeout(() => {
+                    window.location.href = 'home.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                setLoading(false);
+                
+                let errorMsg = 'Errore durante l\'accesso';
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMsg = 'Utente non trovato';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMsg = 'Password errata';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMsg = 'Email non valida';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMsg = 'Account disabilitato';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMsg = 'Troppi tentativi. Riprova più tardi';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+                
+                showError(errorMsg);
+            }
+        }
+
+        // Register function
+        async function register(email, password) {
+            try {
+                setLoading(true);
+                hideMessages();
+                
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                console.log('Registration successful:', userCredential.user);
+                
+                showSuccess('Registrazione completata! Accesso automatico...');
+                
+                // Auto-login after registration
+                setTimeout(() => {
+                    window.location.href = 'home.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Registration error:', error);
+                setLoading(false);
+                
+                let errorMsg = 'Errore durante la registrazione';
+                switch (error.code) {
+                    case 'auth/email-already-in-use':
+                        errorMsg = 'Email già in uso';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMsg = 'Email non valida';
+                        break;
+                    case 'auth/weak-password':
+                        errorMsg = 'Password troppo debole (minimo 6 caratteri)';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+                
+                showError(errorMsg);
+            }
+        }
+
+        // Form submission
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            
+            if (!email || !password) {
+                showError('Inserisci email e password');
+                return;
+            }
+            
+            await login(email, password);
+        });
+
+        // Register form (hidden by default)
+        function showRegisterForm() {
+            const loginBtn = document.getElementById('login-btn');
+            const registerLink = document.querySelector('.register-link p');
+            
+            if (loginBtn.textContent === 'Accedi') {
+                // Switch to register mode
+                loginBtn.textContent = 'Registrati';
+                registerLink.innerHTML = 'Hai già un account? <a href="#" onclick="showRegisterForm()">Accedi</a>';
+                
+                // Change form action
+                loginForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value;
+                    
+                    if (!email || !password) {
+                        showError('Inserisci email e password');
+                        return;
+                    }
+                    
+                    await register(email, password);
+                };
+            } else {
+                // Switch back to login mode
+                loginBtn.textContent = 'Accedi';
+                registerLink.innerHTML = 'Non hai un account? <a href="#" onclick="showRegisterForm()">Registrati</a>';
+                
+                // Reset form action
+                loginForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value;
+                    
+                    if (!email || !password) {
+                        showError('Inserisci email e password');
+                        return;
+                    }
+                    
+                    await login(email, password);
+                };
+            }
+        }
+
+        // Make showRegisterForm globally accessible
+        window.showRegisterForm = showRegisterForm;
+
+        // Check if user is already logged in
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log('User already logged in:', user.email);
+                // Redirect to home if already logged in
+                window.location.href = 'home.html';
+            }
+        });
+
+    </script>
+</body>
+</html>
+
