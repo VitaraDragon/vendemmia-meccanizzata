@@ -519,39 +519,65 @@
                 const clientsCount = clientsSnapshot.size;
                 totalClientsEl.textContent = clientsCount;
 
-                // Calculate total terreni, ettari, and completion for the selected year
+                // Calculate total terreni (in piano), ettari, and completion for the selected year
                 let totalTerreni = 0;
                 let totalEttari = 0;
                 let terreniVendemmiati = 0;
+                let totalTerreniInPiano = 0;
                 
                 clientsSnapshot.forEach(doc => {
                     const client = doc.data();
                     if (client.terreni && Array.isArray(client.terreni)) {
-                        totalTerreni += client.terreni.length;
+                        // Determine "in piano" by ids first, fallback to legacy indices
+                        let terreniInPianoIndices = [];
+                        const yearKeyStr = String(year);
+                        const yearKeyNum = Number(year);
+                        if (client.terreniDaVendemmiareIds) {
+                            const ids = client.terreniDaVendemmiareIds[yearKeyNum] || client.terreniDaVendemmiareIds[yearKeyStr] || [];
+                            const idsSet = new Set((ids || []).map(v => String(v)));
+                            client.terreni.forEach((t, idx) => {
+                                if (t && t.uid && idsSet.has(String(t.uid))) {
+                                    terreniInPianoIndices.push(idx);
+                                }
+                            });
+                        } else if (client.terreniDaVendemmiare) {
+                            terreniInPianoIndices = (client.terreniDaVendemmiare[yearKeyNum] || client.terreniDaVendemmiare[yearKeyStr] || []).map(v => Number(v));
+                        }
                         
-                        // Calculate total ettari and count vendemmiati terreni for the selected year
-                        client.terreni.forEach(terreno => {
-                            const ettari = parseFloat(terreno.ettari) || 0;
-                            totalEttari += ettari;
+                        totalTerreniInPiano += terreniInPianoIndices.length;
+                        
+                        // Count only terreni in piano for statistics
+                        client.terreni.forEach((terreno, index) => {
+                            const isInPiano = terreniInPianoIndices.includes(Number(index));
                             
-                            // Check if terreno is marked as vendemmiato for this year
-                            // Support both old format (vendemmiato: true) and new format (vendemmiati: {2025: true})
-                            let isVendemmiato = false;
-                            if (terreno.vendemmiati && typeof terreno.vendemmiati === 'object') {
-                                // New format: check for the specific year
-                                isVendemmiato = terreno.vendemmiati[year] === true;
-                            } else if (terreno.vendemmiato === true) {
-                                // Old format: assume it's for current year
-                                isVendemmiato = true;
-                            }
-                            
-                            // Count terreni vendemmiati (not ettari)
-                            if (isVendemmiato) {
-                                terreniVendemmiati++;
+                            if (isInPiano) {
+                                // Use ettariVendemmiati if available (zone escluse), otherwise use ettari totali
+                                const ettari = (terreno.ettariVendemmiati && terreno.ettariVendemmiati[year]) 
+                                    || (parseFloat(terreno.ettari) || 0);
+                                totalEttari += ettari;
+                                
+                                // Check if terreno is marked as vendemmiato for this year
+                                // Support both old format (vendemmiato: true) and new format (vendemmiati: {2025: true})
+                                let isVendemmiato = false;
+                                if (terreno.vendemmiati && typeof terreno.vendemmiati === 'object') {
+                                    // New format: check for the specific year
+                                    isVendemmiato = terreno.vendemmiati[year] === true;
+                                } else if (terreno.vendemmiato === true && year === new Date().getFullYear()) {
+                                    // Old format: assume it's for current year only
+                                    isVendemmiato = true;
+                                }
+                                
+                                // Count terreni vendemmiati
+                                if (isVendemmiato) {
+                                    terreniVendemmiati++;
+                                }
                             }
                         });
                     }
                 });
+                
+                // Use terreni in piano for total terreni display
+                totalTerreni = totalTerreniInPiano;
                 
                 totalTerreniEl.textContent = totalTerreni;
                 totalEttariEl.textContent = totalEttari.toFixed(2);

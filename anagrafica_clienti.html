@@ -386,7 +386,7 @@
             background: #f8f9fa;
             color: #000;
             display: grid;
-            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1.5fr;
+            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1fr 1.5fr;
             gap: 15px;
             padding: 15px 20px;
             font-weight: 600;
@@ -397,7 +397,7 @@
 
         .terreno-row {
             display: grid;
-            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1.5fr;
+            grid-template-columns: 2.5fr 2fr 1.2fr 1.2fr 1fr 0.8fr 1fr 1fr 1.5fr;
             gap: 15px;
             padding: 15px 20px;
             border-bottom: 1px solid #eee;
@@ -505,13 +505,13 @@
             
             .terreni-header, .terreno-row {
                 font-size: 0.85em;
-                grid-template-columns: 2fr 1.5fr 1fr 1fr 0.8fr 0.7fr 0.8fr 1.2fr;
+                grid-template-columns: 2fr 1.5fr 1fr 1fr 0.8fr 0.7fr 0.8fr 0.8fr 1.2fr;
             }
         }
 
         @media (max-width: 1200px) {
             .terreni-header, .terreno-row {
-                grid-template-columns: 2fr 1.3fr 1fr 1fr 0.7fr 0.6fr 0.7fr 1fr;
+                grid-template-columns: 2fr 1.3fr 1fr 1fr 0.7fr 0.6fr 0.7fr 0.7fr 1fr;
                 font-size: 0.8em;
             }
         }
@@ -1398,16 +1398,36 @@
                 return { icon: '', title: 'Nessun terreno' };
             }
             
-            let totalTerreni = client.terreni.length;
+            // Get terreni in piano for current year (prefer ids, fallback indices)
+            let terreniInPianoIndices = [];
+            const yearKeyStr = String(currentYear);
+            const yearKeyNum = Number(currentYear);
+            if (client.terreniDaVendemmiareIds) {
+                const ids = client.terreniDaVendemmiareIds[yearKeyNum] || client.terreniDaVendemmiareIds[yearKeyStr] || [];
+                const idsSet = new Set((ids || []).map(v => String(v)));
+                client.terreni.forEach((t, idx) => {
+                    if (t && t.uid && idsSet.has(String(t.uid))) {
+                        terreniInPianoIndices.push(idx);
+                    }
+                });
+            } else if (client.terreniDaVendemmiare) {
+                terreniInPianoIndices = (client.terreniDaVendemmiare[yearKeyNum] || client.terreniDaVendemmiare[yearKeyStr] || []).map(v => Number(v));
+            }
+            
+            let totalTerreni = terreniInPianoIndices.length;
             let terreniCompletati = 0;
             
-            client.terreni.forEach(terreno => {
-                // Check if terreno is vendemmiato for current year
-                if (terreno.vendemmiati && terreno.vendemmiati[currentYear] === true) {
-                    terreniCompletati++;
-                } else if (terreno.vendemmiato === true && currentYear === new Date().getFullYear()) {
-                    // Support old format for current year
-                    terreniCompletati++;
+            client.terreni.forEach((terreno, index) => {
+                const isInPiano = terreniInPianoIndices.includes(index);
+                
+                if (isInPiano) {
+                    // Check if terreno is vendemmiato for current year
+                    if (terreno.vendemmiati && terreno.vendemmiati[currentYear] === true) {
+                        terreniCompletati++;
+                    } else if (terreno.vendemmiato === true && currentYear === new Date().getFullYear()) {
+                        // Support old format for current year
+                        terreniCompletati++;
+                    }
                 }
             });
             
@@ -1549,14 +1569,60 @@
                     // Update year display
                     document.getElementById('terreni-year-display').textContent = currentYear;
                     
-                    // Always load terreni for different client or first time
-                    if (isDifferentClient) {
-                        console.log(`Loading new terreni for client: ${clientId}, Count: ${client.terreni ? client.terreni.length : 0}`);
-                        loadTerreni(client.terreni || []);
-                        terreniModified = false;
-                    } else {
-                        console.log(`Using cached terreni for same client: ${clientId}`);
+                    // Always load fresh data from database when opening modal
+                    console.log(`Loading terreni for client: ${clientId}, Count: ${client.terreni ? client.terreni.length : 0}`);
+                    loadTerreni(client.terreni || []);
+                    
+                    // Load terreniDaVendemmiare (legacy) and terreniDaVendemmiareIds (new) from database
+                    // NO automatic initialization - user must explicitly select which terreni to vendemmiare
+                    console.log(`DEBUG: Loading terreniDaVendemmiare from client data:`, client.terreniDaVendemmiare);
+                    terreniDaVendemmiare = client.terreniDaVendemmiare || {};
+                    console.log(`DEBUG: Loading terreniDaVendemmiareIds from client data:`, client.terreniDaVendemmiareIds);
+                    terreniDaVendemmiareIds = client.terreniDaVendemmiareIds || {};
+                    // Normalize year key (string vs number) and ensure indices/ids are normalized
+                    const yNum = Number(currentYear);
+                    const yStr = String(currentYear);
+                    if (!terreniDaVendemmiare[yNum] && terreniDaVendemmiare[yStr]) {
+                        terreniDaVendemmiare[yNum] = (terreniDaVendemmiare[yStr] || []).map(v => Number(v));
                     }
+                    if (terreniDaVendemmiare[yNum]) {
+                        terreniDaVendemmiare[yNum] = terreniDaVendemmiare[yNum].map(v => Number(v));
+                    }
+                    if (!terreniDaVendemmiareIds[yNum] && terreniDaVendemmiareIds[yStr]) {
+                        terreniDaVendemmiareIds[yNum] = (terreniDaVendemmiareIds[yStr] || []).map(v => String(v));
+                    }
+                    if (terreniDaVendemmiareIds[yNum]) {
+                        terreniDaVendemmiareIds[yNum] = terreniDaVendemmiareIds[yNum].map(v => String(v));
+                    }
+                    // If we have legacy indices but no ids for this year, migrate to ids
+                    if ((!terreniDaVendemmiareIds[yNum] || terreniDaVendemmiareIds[yNum].length === 0) && Array.isArray(terreniDaVendemmiare[yNum]) && currentTerreni.length > 0) {
+                        const ids = [];
+                        terreniDaVendemmiare[yNum].forEach(idx => {
+                            const t = currentTerreni[idx];
+                            if (t && t.uid) ids.push(String(t.uid));
+                        });
+                        terreniDaVendemmiareIds[yNum] = ids;
+                        terreniModified = true;
+                        console.log('Migrated legacy indices to ids for year', yNum, ids);
+                        await saveTerreniToFirebase();
+                    }
+                    // If ids exist for this year, sync legacy indices to match ids (or clear)
+                    if (Array.isArray(terreniDaVendemmiareIds[yNum])) {
+                        const idsSet = new Set(terreniDaVendemmiareIds[yNum]);
+                        const legacySync = [];
+                        currentTerreni.forEach((t, idx) => {
+                            if (t && t.uid && idsSet.has(String(t.uid))) legacySync.push(idx);
+                        });
+                        terreniDaVendemmiare[yNum] = legacySync;
+                        terreniModified = true;
+                        await saveTerreniToFirebase();
+                    }
+                    console.log(`DEBUG: terreniDaVendemmiare after load/normalize:`, terreniDaVendemmiare);
+                    console.log(`DEBUG: terreniDaVendemmiareIds after load/normalize:`, terreniDaVendemmiareIds);
+                    // Re-render now that ids are loaded/normalized so checkboxes reflect correct state
+                    renderTerreni();
+                    
+                    terreniModified = false;
                     
                     // Show terreni modal
                     document.getElementById('terreni-modal').style.display = 'block';
@@ -1632,8 +1698,8 @@
         // Leggi anno selezionato da Firestore
         async function getAnnoSelezionato() {
             try {
-                const annoRef = doc(db, 'preferenze', 'annoSelezionato');
-                const annoSnap = await getDoc(annoRef);
+                const annoRef = window.firebaseFunctions.doc(window.db, 'preferenze', 'annoSelezionato');
+                const annoSnap = await window.firebaseFunctions.getDoc(annoRef);
                 if (annoSnap.exists()) {
                     const data = annoSnap.data();
                     console.log(`Anno selezionato da Firestore: ${data.anno}`);
@@ -1653,12 +1719,32 @@
 
         // Terreni management functions
         let currentTerreni = [];
+        let terreniDaVendemmiare = {}; // Legacy indices per anno
+        let terreniDaVendemmiareIds = {}; // New: ids per anno
         let terreniModified = false;
         let currentYear = new Date().getFullYear(); // Will be overwritten by getAnnoSelezionato()
 
         function loadTerreni(terreni) {
             console.log('Loading terreni from database:', terreni);
             currentTerreni = [...terreni];
+            // Ensure stable uid for each terreno
+            let assigned = false;
+            currentTerreni.forEach((terreno, index) => {
+                if (!terreno.uid) {
+                    terreno.uid = `t_${Date.now()}_${index}_${Math.floor(Math.random()*100000)}`;
+                    assigned = true;
+                }
+            });
+            if (assigned) {
+                terreniModified = true;
+                console.log('Assigned uid to terreni without uid');
+                // Persist newly assigned uids immediately
+                saveTerreniToFirebase().then(() => {
+                    console.log('Auto-saved newly assigned terreno uids');
+                }).catch((e) => {
+                    console.error('Failed to auto-save terreno uids:', e);
+                });
+            }
             
             // Log each terreno loaded
             currentTerreni.forEach((terreno, index) => {
@@ -1696,6 +1782,7 @@
                         <div class="col-palo">Tipo Palo</div>
                         <div class="col-ettari">Ha</div>
                         <div class="col-mappa">Mappa</div>
+                        <div class="col-in-piano">In piano ${currentYear}</div>
                         <div class="col-stato">Vendemmiato</div>
                         <div class="col-azioni">Azioni</div>
                     </div>
@@ -1722,6 +1809,15 @@
                                     '<span class="map-indicator" title="Confini tracciati">📍</span>' : 
                                     '<span class="map-indicator no-map" title="Nessun confine tracciato">❌</span>'
                                 }
+                            </div>
+                            <div class="col-in-piano">
+                                <label style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                    <input type="checkbox" 
+                                           ${isInPiano(terreno, index) ? 'checked' : ''} 
+                                           onchange="toggleInPiano(${index})"
+                                           style="width: 20px; height: 20px; cursor: pointer;"
+                                           title="${isInPiano(terreno, index) ? 'Il terreno è in piano per quest\'anno' : 'Da aggiungere al piano di vendemmia'}">
+                                </label>
                             </div>
                             <div class="col-stato">
                                 <label style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
@@ -1819,6 +1915,72 @@
             }, 100);
         }
 
+        // Helper function to check if terreno is in piano for current year
+        function isInPiano(terreno, index) {
+            const yearKey = Number(currentYear);
+            const ids = (terreniDaVendemmiareIds[yearKey] || []).map(v => String(v));
+            if (!ids || ids.length === 0) return false; // Default: NO terreni in piano
+            const uid = String(currentTerreni[index]?.uid || '');
+            return uid && ids.includes(uid);
+        }
+
+        // Toggle in piano status for current year
+        async function toggleInPiano(index) {
+            const yearKey = Number(currentYear);
+            const uid = String(currentTerreni[index]?.uid || '');
+            console.log(`DEBUG: toggleInPiano called for uid ${uid} (index ${index})`);
+            console.log(`DEBUG: Before toggle - terreniDaVendemmiareIds[${yearKey}]:`, terreniDaVendemmiareIds[yearKey]);
+            
+            if (!uid) return;
+            if (!terreniDaVendemmiareIds[yearKey]) {
+                terreniDaVendemmiareIds[yearKey] = [];
+            }
+            // Ensure string array
+            terreniDaVendemmiareIds[yearKey] = terreniDaVendemmiareIds[yearKey].map(v => String(v));
+            
+            const pos = terreniDaVendemmiareIds[yearKey].indexOf(uid);
+            if (pos >= 0) {
+                // Remove from in piano
+                terreniDaVendemmiareIds[yearKey].splice(pos, 1);
+                console.log(`DEBUG: Removed uid ${uid} from in piano`);
+            } else {
+                // Add to in piano
+                terreniDaVendemmiareIds[yearKey].push(uid);
+                console.log(`DEBUG: Added uid ${uid} to in piano`);
+            }
+            
+            console.log(`DEBUG: After toggle - terreniDaVendemmiareIds[${yearKey}]:`, terreniDaVendemmiareIds[yearKey]);
+            
+            // If checkbox is unchecked, also uncheck vendemmiato if it was checked
+            if (!terreniDaVendemmiareIds[yearKey].includes(uid)) {
+                const terreno = currentTerreni[index];
+                if (terreno.vendemmiati && terreno.vendemmiati[yearKey] === true) {
+                    terreno.vendemmiati[yearKey] = false;
+                }
+            }
+            
+            terreniModified = true;
+            renderTerreni();
+            
+            // Keep legacy indices in sync with ids for this year
+            {
+                const idsSet = new Set(terreniDaVendemmiareIds[yearKey] || []);
+                const legacySync = [];
+                currentTerreni.forEach((t, idx) => {
+                    if (t && t.uid && idsSet.has(String(t.uid))) legacySync.push(idx);
+                });
+                terreniDaVendemmiare[yearKey] = legacySync;
+            }
+            // Save immediately
+            console.log(`DEBUG: Attempting to save terreniDaVendemmiareIds:`, terreniDaVendemmiareIds);
+            try {
+                await saveTerreniToFirebase();
+                console.log('TerreniDaVendemmiare saved after toggle');
+            } catch (error) {
+                console.error('Error saving terreniDaVendemmiare:', error);
+            }
+        }
+
         // Helper function to check if terreno is vendemmiato for current year
         function isVendemmiato(terreno) {
             // Support both old format (vendemmiato: true) and new format (vendemmiati: {2025: true})
@@ -1835,6 +1997,15 @@
         // Toggle vendemmiato status for current year
         function toggleVendemmiato(index) {
             const terreno = currentTerreni[index];
+            
+            // Check if terreno is in piano first
+            if (!isInPiano(terreno, index)) {
+                alert('⚠️ Questo terreno non è incluso nel piano di vendemmia per quest\'anno. Spunta prima la checkbox "In piano ' + currentYear + '".');
+                // Uncheck the checkbox
+                const checkbox = document.querySelector(`input[onchange="toggleVendemmiato(${index})"]`);
+                if (checkbox) checkbox.checked = false;
+                return;
+            }
             
             // Migrate old format to new format if needed
             if (terreno.vendemmiato !== undefined && !terreno.vendemmiati) {
@@ -2194,7 +2365,10 @@
         // Save terreni to Firebase (internal function)
         async function saveTerreniToFirebase() {
             try {
+                console.log('=== SAVE TERRENI TO FIREBASE ===');
                 console.log('Saving terreni to Firebase:', currentTerreni);
+                console.log('Saving terreniDaVendemmiare:', terreniDaVendemmiare);
+                console.log('Saving terreniDaVendemmiareIds:', terreniDaVendemmiareIds);
                 console.log('Current client ID:', window.currentClientId);
                 
                 // Log each terreno in detail
@@ -2212,6 +2386,8 @@
                 const clientRef = window.firebaseFunctions.doc(window.db, 'clients', window.currentClientId);
                 await window.firebaseFunctions.updateDoc(clientRef, {
                     terreni: currentTerreni,
+                    terreniDaVendemmiare: terreniDaVendemmiare,
+                    terreniDaVendemmiareIds: terreniDaVendemmiareIds,
                     updatedAt: new Date()
                 });
                 
@@ -2219,6 +2395,8 @@
                 const updatedDoc = await window.firebaseFunctions.getDoc(clientRef);
                 const savedData = updatedDoc.data();
                 console.log('Verification - saved terreni:', savedData.terreni);
+                console.log('Verification - saved terreniDaVendemmiare:', savedData.terreniDaVendemmiare);
+                console.log('Verification - saved terreniDaVendemmiareIds:', savedData.terreniDaVendemmiareIds);
                 
                 console.log('Terreni salvati automaticamente in Firebase');
             } catch (error) {
