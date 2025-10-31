@@ -601,6 +601,15 @@
         let filteredData = [];
         let filteredSpese = [];
         let tariffeVendemmia = {}; // Tariffe vendemmia globali
+        
+        function normalizzaNomeCompleto(nome, cognome) {
+            const full = `${(nome || '').trim()} ${(cognome || '').trim()}`.trim();
+            return full.replace(/\s+/g, ' ').toLowerCase();
+        }
+        
+        function normalizzaStringaNomeCompleto(str) {
+            return (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        }
 
         // Make functions globally available
         window.db = db;
@@ -647,6 +656,19 @@
                     });
                 });
 
+                // Mappa ausiliaria nome completo -> id (per deduzione clientId dai calcoli storici)
+                const nomeCompletoToId = new Map();
+                const idToNomeCompleto = new Map(); // Mappa inversa per match anche da nome
+                allClients.forEach(c => {
+                    const key = normalizzaNomeCompleto(c.nome, c.cognome);
+                    if (key) {
+                        nomeCompletoToId.set(key, c.id);
+                        idToNomeCompleto.set(c.id, key);
+                    }
+                });
+                window.nomeCompletoToId = nomeCompletoToId;
+                window.idToNomeCompleto = idToNomeCompleto;
+
                 // Carica spese
                 const speseSnapshot = await getDocs(collection(db, 'spese'));
                 allSpese = [];
@@ -660,6 +682,18 @@
                 });
 
                 console.log(`Caricati ${allCalculations.length} calcoli, ${allClients.length} clienti e ${allSpese.length} spese`);
+                
+                // Deduci clientId nei calcoli se assente, usando l'anagrafica
+                allCalculations = allCalculations.map(calc => {
+                    if (!calc.clientId) {
+                        const key = normalizzaStringaNomeCompleto(calc.cliente);
+                        const dedId = nomeCompletoToId.get(key);
+                        if (dedId) {
+                            return { ...calc, clientId: dedId };
+                        }
+                    }
+                    return calc;
+                });
                 
                 // Carica tariffe da Firebase
                 try {
@@ -733,18 +767,14 @@
 
         // Popola filtri
         function popolaFiltri() {
-            // Filtro clienti
-            const clientiSet = new Set();
-            filteredData.forEach(calc => {
-                if (calc.cliente) clientiSet.add(calc.cliente);
-            });
-            
+            // Filtro clienti (da anagrafica, non dai calcoli filtrati)
             const filterCliente = document.getElementById('filter-cliente');
             filterCliente.innerHTML = '<option value="">Tutti i clienti</option>';
-            Array.from(clientiSet).sort().forEach(cliente => {
+            const clientsSorted = [...allClients].sort((a, b) => normalizzaNomeCompleto(a.nome, a.cognome).localeCompare(normalizzaNomeCompleto(b.nome, b.cognome)));
+            clientsSorted.forEach(c => {
                 const option = document.createElement('option');
-                option.value = cliente;
-                option.textContent = cliente;
+                option.value = c.id;
+                option.textContent = `${c.nome || ''} ${c.cognome || ''}`.trim() || c.id;
                 filterCliente.appendChild(option);
             });
 
@@ -802,9 +832,37 @@
             }, 0);
             document.getElementById('kpi-ettari').textContent = `${ettariTotali.toFixed(2)} ha`;
 
-            // Clienti serviti
-            const clientiSet = new Set(data.map(calc => calc.cliente).filter(Boolean));
-            document.getElementById('kpi-clienti').textContent = clientiSet.size;
+            // Clienti serviti (unificando ID e nomi normalizzati per evitare doppi conteggi)
+            const clientiUnificati = new Set();
+            const nomeToClientIdForKpi = new Map();
+            
+            // Prima passata: raccogli mapping nome -> clientId
+            data.forEach(calc => {
+                if (calc.clientId) {
+                    const nomeNorm = window.idToNomeCompleto?.get(calc.clientId);
+                    if (nomeNorm) {
+                        nomeToClientIdForKpi.set(nomeNorm, calc.clientId);
+                    }
+                }
+            });
+            
+            // Seconda passata: conta clienti unificando ID e nomi
+            data.forEach(calc => {
+                if (calc.clientId) {
+                    clientiUnificati.add(calc.clientId);
+                } else if (calc.cliente) {
+                    const nomeNorm = normalizzaStringaNomeCompleto(calc.cliente);
+                    const clientIdDedotto = nomeToClientIdForKpi.get(nomeNorm) || window.nomeCompletoToId?.get(nomeNorm);
+                    if (clientIdDedotto) {
+                        // Unifica usando clientId
+                        clientiUnificati.add(clientIdDedotto);
+                    } else {
+                        // Cliente senza ID corrispondente
+                        clientiUnificati.add(`nome_${nomeNorm}`);
+                    }
+                }
+            });
+            document.getElementById('kpi-clienti').textContent = clientiUnificati.size;
 
             // Tariffa media per ettaro (solo vendemmia, esclude trasporti)
             const tariffaMedia = ettariTotali > 0 ? (ricaviVendemmia / ettariTotali) : 0;
@@ -827,23 +885,60 @@
                 return;
             }
 
-            // Raggruppa per cliente
+            // Raggruppa per cliente unificando ID e nome (merge righe duplicate)
             const perCliente = {};
+            const idToDisplayName = new Map(allClients.map(c => [c.id, `${c.nome || ''} ${c.cognome || ''}`.trim() || c.id]));
+            const nomeToClientId = new Map(); // Mappa nome normalizzato -> clientId (per unificare)
+            
+            // Prima passata: raccogli tutti i clientId utilizzati
             data.forEach(calc => {
-                const cliente = calc.cliente || 'Non specificato';
-                if (!perCliente[cliente]) {
-                    perCliente[cliente] = {
+                if (calc.clientId) {
+                    const nomeNorm = window.idToNomeCompleto?.get(calc.clientId);
+                    if (nomeNorm) {
+                        nomeToClientId.set(nomeNorm, calc.clientId);
+                    }
+                }
+            });
+            
+            data.forEach(calc => {
+                // Usa sempre clientId come chiave se disponibile, altrimenti prova a dedurlo dal nome
+                let key;
+                let displayName;
+                
+                if (calc.clientId) {
+                    key = calc.clientId;
+                    displayName = idToDisplayName.get(calc.clientId) || calc.cliente || 'Non specificato';
+                } else if (calc.cliente) {
+                    const nomeNorm = normalizzaStringaNomeCompleto(calc.cliente);
+                    // Prova a trovare clientId corrispondente dal nome
+                    const clientIdDedotto = nomeToClientId.get(nomeNorm) || window.nomeCompletoToId?.get(nomeNorm);
+                    if (clientIdDedotto) {
+                        key = clientIdDedotto;
+                        displayName = idToDisplayName.get(clientIdDedotto) || calc.cliente;
+                    } else {
+                        // Nessun match, usa nome normalizzato come chiave
+                        key = nomeNorm || 'non-specificato';
+                        displayName = calc.cliente;
+                    }
+                } else {
+                    key = 'non-specificato';
+                    displayName = 'Non specificato';
+                }
+                
+                if (!perCliente[key]) {
+                    perCliente[key] = {
+                        displayName: displayName,
                         ricavi: 0,
                         ettari: 0,
                         interventi: 0,
-                        totaleVendemmia: 0  // Ricavi solo vendemmia (esclusi trasporti e sconti)
+                        totaleVendemmia: 0
                     };
                 }
-                perCliente[cliente].ricavi += calc.totaleFinale || 0;
-                perCliente[cliente].totaleVendemmia += calc.totaleVendemmia || 0;
-                perCliente[cliente].interventi++;
+                perCliente[key].ricavi += calc.totaleFinale || 0;
+                perCliente[key].totaleVendemmia += calc.totaleVendemmia || 0;
+                perCliente[key].interventi++;
                 if (calc.terreniSelezionati && Array.isArray(calc.terreniSelezionati)) {
-                    perCliente[cliente].ettari += calc.terreniSelezionati.reduce((s, t) => s + (parseFloat(t.ettari) || 0), 0);
+                    perCliente[key].ettari += calc.terreniSelezionati.reduce((s, t) => s + (parseFloat(t.ettari) || 0), 0);
                 }
             });
 
@@ -866,13 +961,13 @@
             let totaleEttari = 0;
             let totaleInterventi = 0;
 
-            Object.entries(perCliente).sort((a, b) => b[1].ricavi - a[1].ricavi).forEach(([cliente, dati]) => {
+            Object.entries(perCliente).sort((a, b) => b[1].ricavi - a[1].ricavi).forEach(([key, dati]) => {
                 // Calcola tariffa media come totaleVendemmia / ettari
                 const tariffaMedia = dati.ettari > 0 ? (dati.totaleVendemmia / dati.ettari) : 0;
                 
                 tableHTML += `
                     <tr>
-                        <td><strong>${cliente}</strong></td>
+                        <td><strong>${dati.displayName}</strong></td>
                         <td>${dati.interventi}</td>
                         <td>${dati.ettari.toFixed(2)} ha</td>
                         <td><strong>€ ${dati.ricavi.toFixed(2)}</strong></td>
@@ -1108,27 +1203,70 @@
             // Filtra per anno
             filtraPerAnno(currentYear);
 
-            // Applica filtri aggiuntivi
+            // Applica filtro cliente (include anche calcoli senza clientId ma con nome che matcha)
             if (filterCliente) {
-                filteredData = filteredData.filter(calc => calc.cliente === filterCliente);
+                const clienteSelezionato = allClients.find(c => c.id === filterCliente);
+                if (clienteSelezionato) {
+                    const nomeNormalizzatoCliente = normalizzaNomeCompleto(clienteSelezionato.nome, clienteSelezionato.cognome);
+                    filteredData = filteredData.filter(calc => {
+                        // Match per clientId
+                        if (calc.clientId === filterCliente) return true;
+                        // Match per nome normalizzato (per calcoli storici senza clientId)
+                        if (!calc.clientId && calc.cliente) {
+                            const nomeCalcNormalizzato = normalizzaStringaNomeCompleto(calc.cliente);
+                            return nomeCalcNormalizzato === nomeNormalizzatoCliente;
+                        }
+                        return false;
+                    });
+                }
             }
 
-            if (filterUva) {
-                filteredData = filteredData.filter(calc => {
-                    if (calc.terreniSelezionati && Array.isArray(calc.terreniSelezionati)) {
-                        return calc.terreniSelezionati.some(t => t.tipoUva === filterUva);
+            // Applica filtri Uva/Terreno a livello di terreno e ricalcola valori
+            if (filterUva || filterTerreno) {
+                filteredData = filteredData.map(calc => {
+                    if (!calc.terreniSelezionati || !Array.isArray(calc.terreniSelezionati)) {
+                        return calc;
                     }
-                    return false;
-                });
-            }
 
-            if (filterTerreno) {
-                filteredData = filteredData.filter(calc => {
-                    if (calc.terreniSelezionati && Array.isArray(calc.terreniSelezionati)) {
-                        return calc.terreniSelezionati.some(t => t.morfologia === filterTerreno);
+                    // Filtra terreni che matchano i criteri
+                    const terreniFiltrati = calc.terreniSelezionati.filter(terreno => {
+                        const matchUva = !filterUva || terreno.tipoUva === filterUva;
+                        const matchTerreno = !filterTerreno || terreno.morfologia === filterTerreno;
+                        return matchUva && matchTerreno;
+                    });
+
+                    // Se nessun terreno matcha, escludi il calcolo
+                    if (terreniFiltrati.length === 0) {
+                        return null;
                     }
-                    return false;
-                });
+
+                    // Se tutti i terreni matchano, ritorna calcolo originale
+                    if (terreniFiltrati.length === calc.terreniSelezionati.length) {
+                        return calc;
+                    }
+
+                    // Calcola ettari totali originali e ettari filtrati
+                    const ettariTotaliOriginali = calc.terreniSelezionati.reduce((sum, t) => sum + (parseFloat(t.ettari) || 0), 0);
+                    const ettariFiltrati = terreniFiltrati.reduce((sum, t) => sum + (parseFloat(t.ettari) || 0), 0);
+                    
+                    // Scala proporzionalmente il totaleVendemmia originale in base agli ettari filtrati
+                    // Questo mantiene la coerenza con i dati originali senza dipendere dalle tariffe
+                    const totaleVendemmiaOriginale = calc.totaleVendemmia || 0;
+                    const fattoreScala = ettariTotaliOriginali > 0 ? (ettariFiltrati / ettariTotaliOriginali) : 0;
+                    const totaleVendemmiaFiltrato = totaleVendemmiaOriginale * fattoreScala;
+                    
+                    // Scala anche trasporto e sconto proporzionalmente (opzione conservativa)
+                    // Oppure mantienili invariati (dipende dalla logica di business)
+                    // Per ora li mantengo invariati come erano prima
+                    const totaleFinale = totaleVendemmiaFiltrato + (calc.totaleTrasporto || 0) + (calc.sconto || 0);
+
+                    return {
+                        ...calc,
+                        terreniSelezionati: terreniFiltrati,
+                        totaleVendemmia: totaleVendemmiaFiltrato,
+                        totaleFinale: totaleFinale
+                    };
+                }).filter(calc => calc !== null); // Rimuovi calcoli null
             }
 
             window.filteredData = filteredData;
