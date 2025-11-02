@@ -141,6 +141,14 @@
             text-align: center;
         }
 
+        .kpi-icon img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+
         .kpi-value {
             font-size: 2.5em;
             font-weight: bold;
@@ -439,7 +447,7 @@
                 </div>
 
                 <div class="kpi-card">
-                    <div class="kpi-icon">🏞️</div>
+                    <div class="kpi-icon"><img src="icons/terreni-icon.png.png" alt="Terreni"></div>
                     <div class="kpi-value" id="kpi-ettari">0 ha</div>
                     <div class="kpi-label">Ettari Lavorati</div>
                 </div>
@@ -549,22 +557,27 @@
         </div>
     </div>
 
+    <!-- Error Handler Centralizzato -->
+    <script src="error-handler.js"></script>
+    <!-- Loading Handler Centralizzato -->
+    <script src="loading-handler.js"></script>
+    <!-- Firebase Optimizer -->
+    <script src="firebase-optimizer.js"></script>
+    <!-- Form Validator Centralizzato -->
+    <script src="form-validator.js"></script>
+    <!-- Firebase Configuration Centralizzata -->
+    <script src="firebase-config-shared.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore, collection, getDocs, doc, getDoc, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
-            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
-            projectId: "vendemmia-meccanizzata",
-            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
-            messagingSenderId: "745067977805",
-            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
-            measurementId: "G-6T53WV1GD3"
-        };
+        // Firebase configuration from centralized file
+        if (!window.firebaseConfig) {
+            console.error('Firebase configuration not found! Make sure firebase-config-shared.js is loaded.');
+        }
+        const firebaseConfig = window.firebaseConfig;
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -623,17 +636,19 @@
 
         // Carica tutti i dati
         async function caricaDati() {
-            // Load anno selezionato da Firestore first
-            const annoDaFirestore = await getAnnoSelezionato();
-            currentYear = annoDaFirestore;
-            window.currentYear = currentYear;
-            
-            // Update the select element
-            const yearSelect = document.getElementById('year-select');
-            if (yearSelect && yearSelect.value !== currentYear.toString()) {
-                yearSelect.value = currentYear;
-            }
-            try {
+            return withLoading(async () => {
+                // Load anno selezionato da Firestore first
+                const annoDaFirestore = await getAnnoSelezionato();
+                currentYear = annoDaFirestore;
+                window.currentYear = currentYear;
+                
+                // Update the select element
+                const yearSelect = document.getElementById('year-select');
+                if (yearSelect && yearSelect.value !== currentYear.toString()) {
+                    yearSelect.value = currentYear;
+                }
+                
+                try {
                 // Carica calcoli
                 const calcoliSnapshot = await getDocs(collection(db, 'calcoli'));
                 allCalculations = [];
@@ -735,10 +750,12 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('main-content').style.display = 'block';
 
-            } catch (error) {
-                console.error('Errore caricamento dati:', error);
-                document.getElementById('loading').innerHTML = '<p style="color: #dc3545;">❌ Errore nel caricamento dei dati</p>';
-            }
+                } catch (error) {
+                    console.error('Errore caricamento dati:', error);
+                    document.getElementById('loading').innerHTML = '<p style="color: #dc3545;">❌ Errore nel caricamento dei dati</p>';
+                    throw error;
+                }
+            }, 'Caricamento dati bilancio...', { showGlobalLoading: false });
         }
 
         // Filtra calcoli per anno
@@ -1074,60 +1091,64 @@
 
         // Aggiungi spesa
         window.aggiungiSpesa = async function() {
+            const submitBtn = document.querySelector('button[onclick="aggiungiSpesa()"]');
+            
+            // Valida form prima di salvare
+            if (spesaValidator && !spesaValidator.validate()) {
+                showWarning('Correggi gli errori nei campi obbligatori prima di salvare');
+                // Focus sul primo campo con errore
+                const firstError = document.querySelector('.field-error');
+                if (firstError) {
+                    firstError.focus();
+                }
+                return;
+            }
+            
             const data = document.getElementById('spesa-data').value;
             const descrizione = document.getElementById('spesa-descrizione').value.trim();
             const importo = parseFloat(document.getElementById('spesa-importo').value);
 
-            // Validazione
-            if (!data) {
-                alert('⚠️ Inserisci la data della spesa');
-                return;
-            }
-            if (!descrizione) {
-                alert('⚠️ Inserisci una descrizione per la spesa');
-                return;
-            }
-            if (!importo || importo <= 0) {
-                alert('⚠️ Inserisci un importo valido maggiore di 0');
-                return;
-            }
-
             try {
-                // Importa addDoc dinamicamente
-                const { addDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                await withLoading(async () => {
+                    // Importa addDoc dinamicamente
+                    const { addDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-                // Salva su Firebase
-                const speseRef = collection(db, 'spese');
-                const docRef = await addDoc(speseRef, {
-                    data: data,
-                    descrizione: descrizione,
-                    importo: importo,
-                    anno: new Date(data).getFullYear(),
-                    createdAt: new Date()
+                    // Salva su Firebase
+                    const speseRef = collection(db, 'spese');
+                    const docRef = await addDoc(speseRef, {
+                        data: data,
+                        descrizione: descrizione,
+                        importo: importo,
+                        anno: new Date(data).getFullYear(),
+                        createdAt: new Date()
+                    });
+
+                    console.log('Spesa salvata con ID:', docRef.id);
+
+                    // Aggiungi alla lista locale
+                    allSpese.push({
+                        id: docRef.id,
+                        data: new Date(data),
+                        descrizione: descrizione,
+                        importo: importo,
+                        anno: new Date(data).getFullYear()
+                    });
+
+                    // Ricarica dati
+                    filtraSpesePerAnno(currentYear);
+                    calcolaKPI();
+                    mostraSpese();
+                    resetFormSpesa();
+
+                    showSuccess('Spesa salvata con successo!');
+                }, 'Salvataggio spesa...', {
+                    button: submitBtn,
+                    showGlobalLoading: false
                 });
-
-                console.log('Spesa salvata con ID:', docRef.id);
-
-                // Aggiungi alla lista locale
-                allSpese.push({
-                    id: docRef.id,
-                    data: new Date(data),
-                    descrizione: descrizione,
-                    importo: importo,
-                    anno: new Date(data).getFullYear()
-                });
-
-                // Ricarica dati
-                filtraSpesePerAnno(currentYear);
-                calcolaKPI();
-                mostraSpese();
-                resetFormSpesa();
-
-                alert('✅ Spesa salvata con successo!');
 
             } catch (error) {
                 console.error('Errore salvataggio spesa:', error);
-                alert('❌ Errore nel salvataggio della spesa: ' + error.message);
+                handleFirebaseError(error, 'salvataggio spesa');
             }
         };
 
@@ -1138,28 +1159,35 @@
             }
 
             try {
-                // Importa deleteDoc dinamicamente
-                const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                await withLoading(async () => {
+                    // Importa deleteDoc dinamicamente
+                    const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-                // Elimina da Firebase
-                await deleteDoc(doc(db, 'spese', spesaId));
+                    // Elimina da Firebase
+                    await deleteDoc(doc(db, 'spese', spesaId));
 
-                console.log('Spesa eliminata:', spesaId);
+                    console.log('Spesa eliminata:', spesaId);
 
-                // Rimuovi dalla lista locale
-                allSpese = allSpese.filter(s => s.id !== spesaId);
-                window.allSpese = allSpese;
+                    // Invalida cache spese
+                    if (window.firebaseOptimizer) {
+                        window.firebaseOptimizer.invalidateCache('spese');
+                        window.firebaseOptimizer.invalidateCache(`spese_${currentYear}`);
+                    }
 
-                // Ricarica dati
-                filtraSpesePerAnno(currentYear);
-                calcolaKPI();
-                mostraSpese();
+                    // Rimuovi dalla lista locale
+                    allSpese = allSpese.filter(s => s.id !== spesaId);
+                    window.allSpese = allSpese;
 
-                alert('✅ Spesa eliminata con successo!');
+                    // Ricarica dati
+                    filtraSpesePerAnno(currentYear);
+                    calcolaKPI();
+                    mostraSpese();
 
+                    showSuccess('Spesa eliminata con successo!');
+                }, 'Eliminazione spesa...', { showGlobalLoading: false });
             } catch (error) {
                 console.error('Errore eliminazione spesa:', error);
-                alert('❌ Errore nell\'eliminazione della spesa: ' + error.message);
+                handleFirebaseError(error, 'eliminazione spesa');
             }
         };
 
@@ -1168,7 +1196,156 @@
             document.getElementById('spesa-data').value = '';
             document.getElementById('spesa-descrizione').value = '';
             document.getElementById('spesa-importo').value = '';
+            // Reset validazione
+            if (spesaValidator) {
+                spesaValidator.reset();
+            }
         };
+
+        // Validatore form spese
+        let spesaValidator;
+        function initSpesaValidator() {
+            if (typeof window.FormValidator === 'undefined' || typeof window.ValidationType === 'undefined') {
+                console.warn('FormValidator non disponibile, retry in 500ms...');
+                setTimeout(() => initSpesaValidator(), 500);
+                return;
+            }
+            
+            try {
+                // Creiamo un validatore personalizzato per il form spese
+                spesaValidator = {
+                    validate: function() {
+                        const data = document.getElementById('spesa-data');
+                        const descrizione = document.getElementById('spesa-descrizione');
+                        const importo = document.getElementById('spesa-importo');
+                        
+                        let isValid = true;
+                        
+                        // Valida data
+                        if (!data || !data.value) {
+                            isValid = false;
+                            this.showFieldError(data, 'Inserisci la data della spesa');
+                        } else {
+                            this.clearFieldError(data);
+                        }
+                        
+                        // Valida descrizione
+                        const descrizioneValue = descrizione ? descrizione.value.trim() : '';
+                        if (!descrizione || !descrizioneValue) {
+                            isValid = false;
+                            this.showFieldError(descrizione, 'Inserisci una descrizione per la spesa');
+                        } else if (descrizioneValue.length < 2) {
+                            isValid = false;
+                            this.showFieldError(descrizione, 'La descrizione deve contenere almeno 2 caratteri');
+                        } else if (descrizioneValue.length > 200) {
+                            isValid = false;
+                            this.showFieldError(descrizione, 'La descrizione non può superare 200 caratteri');
+                        } else {
+                            this.clearFieldError(descrizione);
+                        }
+                        
+                        // Valida importo
+                        if (!importo || !importo.value) {
+                            isValid = false;
+                            this.showFieldError(importo, 'Inserisci un importo per la spesa');
+                        } else {
+                            const importoValue = parseFloat(importo.value);
+                            if (isNaN(importoValue) || importoValue <= 0) {
+                                isValid = false;
+                                this.showFieldError(importo, 'L\'importo deve essere un numero maggiore di 0');
+                            } else {
+                                this.clearFieldError(importo);
+                            }
+                        }
+                        
+                        return isValid;
+                    },
+                    showFieldError: function(field, message) {
+                        if (!field) return;
+                        field.classList.add('field-error');
+                        // Rimuovi messaggio errore precedente
+                        const existingError = field.parentElement.querySelector('.error-message');
+                        if (existingError) {
+                            existingError.remove();
+                        }
+                        // Aggiungi messaggio errore
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.textContent = message;
+                        field.parentElement.appendChild(errorDiv);
+                    },
+                    clearFieldError: function(field) {
+                        if (!field) return;
+                        field.classList.remove('field-error', 'field-success');
+                        const existingError = field.parentElement.querySelector('.error-message');
+                        if (existingError) {
+                            existingError.remove();
+                        }
+                    },
+                    reset: function() {
+                        const fields = document.querySelectorAll('#spesa-data, #spesa-descrizione, #spesa-importo');
+                        fields.forEach(field => {
+                            this.clearFieldError(field);
+                        });
+                    }
+                };
+                
+                // Aggiungi validazione in tempo reale
+                const data = document.getElementById('spesa-data');
+                if (data) {
+                    data.addEventListener('blur', () => {
+                        if (spesaValidator && data.value) {
+                            spesaValidator.clearFieldError(data);
+                            data.classList.add('field-success');
+                        }
+                    });
+                }
+                
+                const descrizione = document.getElementById('spesa-descrizione');
+                if (descrizione) {
+                    descrizione.addEventListener('blur', () => {
+                        if (spesaValidator) {
+                            const value = descrizione.value.trim();
+                            if (value && value.length >= 2 && value.length <= 200) {
+                                spesaValidator.clearFieldError(descrizione);
+                                descrizione.classList.add('field-success');
+                            } else if (value) {
+                                if (value.length < 2) {
+                                    spesaValidator.showFieldError(descrizione, 'La descrizione deve contenere almeno 2 caratteri');
+                                } else {
+                                    spesaValidator.showFieldError(descrizione, 'La descrizione non può superare 200 caratteri');
+                                }
+                            } else {
+                                spesaValidator.clearFieldError(descrizione);
+                            }
+                        }
+                    });
+                }
+                
+                const importo = document.getElementById('spesa-importo');
+                if (importo) {
+                    importo.addEventListener('blur', () => {
+                        if (spesaValidator) {
+                            if (importo.value) {
+                                const value = parseFloat(importo.value);
+                                if (!isNaN(value) && value > 0) {
+                                    spesaValidator.clearFieldError(importo);
+                                    importo.classList.add('field-success');
+                                } else {
+                                    spesaValidator.showFieldError(importo, 'L\'importo deve essere un numero maggiore di 0');
+                                }
+                            } else {
+                                spesaValidator.clearFieldError(importo);
+                            }
+                        }
+                    });
+                }
+                
+                console.log('✅ Validatore form spese inizializzato');
+            } catch (error) {
+                console.error('Errore inizializzazione validatore form spese:', error);
+            }
+        }
 
         // ========== FINE GESTIONE SPESE ==========
 
@@ -1394,7 +1571,7 @@
         window.dettaglioCalcolo = function(calcoloId) {
             const calcolo = allCalculations.find(c => c.id === calcoloId);
             if (!calcolo) {
-                alert('❌ Calcolo non trovato');
+                showError('Calcolo non trovato');
                 return;
             }
             
@@ -1418,7 +1595,7 @@
 
 👤 Cliente: ${calcolo.cliente || 'N/A'}
 📅 Data: ${dataStr}
-🏞️ Terreni:
+<img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 5px;"> Terreni:
 ${terreniDettaglio}
 
 💰 Ricavi Vendemmia: €${(calcolo.totaleVendemmia || 0).toFixed(2)}
@@ -1434,7 +1611,7 @@ ${calcolo.note ? '📝 Note: ' + calcolo.note : ''}
         window.eliminaCalcolo = async function(calcoloId) {
             const calcolo = allCalculations.find(c => c.id === calcoloId);
             if (!calcolo) {
-                alert('❌ Calcolo non trovato');
+                showError('Calcolo non trovato');
                 return;
             }
             
@@ -1451,29 +1628,30 @@ ${calcolo.note ? '📝 Note: ' + calcolo.note : ''}
             if (!conferma) return;
             
             try {
-                // Importa deleteDoc dinamicamente
-                const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-                
-                // Elimina da Firebase
-                await deleteDoc(doc(db, 'calcoli', calcoloId));
-                
-                console.log('Calcolo eliminato:', calcoloId);
-                
-                // Rimuovi dalla lista locale
-                allCalculations = allCalculations.filter(c => c.id !== calcoloId);
-                window.allCalculations = allCalculations;
-                
-                // Ricarica dati
-                filtraPerAnno(currentYear);
-                calcolaKPI();
-                mostraDettagli();
-                mostraCalcoliSalvati(); // Aggiorna lista calcoli
-                
-                alert('✅ Calcolo eliminato con successo!');
-                
+                await withLoading(async () => {
+                    // Importa deleteDoc dinamicamente
+                    const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                    
+                    // Elimina da Firebase
+                    await deleteDoc(doc(db, 'calcoli', calcoloId));
+                    
+                    console.log('Calcolo eliminato:', calcoloId);
+                    
+                    // Rimuovi dalla lista locale
+                    allCalculations = allCalculations.filter(c => c.id !== calcoloId);
+                    window.allCalculations = allCalculations;
+                    
+                    // Ricarica dati
+                    filtraPerAnno(currentYear);
+                    calcolaKPI();
+                    mostraDettagli();
+                    mostraCalcoliSalvati(); // Aggiorna lista calcoli
+                    
+                    showSuccess('Calcolo eliminato con successo!');
+                }, 'Eliminazione calcolo...', { showGlobalLoading: false });
             } catch (error) {
                 console.error('Errore eliminazione calcolo:', error);
-                alert('❌ Errore nell\'eliminazione del calcolo: ' + error.message);
+                handleFirebaseError(error, 'eliminazione calcolo');
             }
         };
         
@@ -1582,18 +1760,24 @@ ${calcolo.note ? '📝 Note: ' + calcolo.note : ''}
         // Inizializzazione
         console.log('Inizializzazione pagina bilancio...');
         
-        // Carica i dati immediatamente senza aspettare l'autenticazione
+        // Inizializza validatore form spese dopo un breve delay
         setTimeout(() => {
-            console.log('Caricamento dati...');
-            caricaDati();
-        }, 1000);
+            initSpesaValidator();
+        }, 1500);
         
-        // Controlla anche l'autenticazione
-        onAuthStateChanged(auth, (user) => {
+        // Controlla autenticazione - redirect al login se non autenticato
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 console.log('Utente autenticato:', user.email);
+                // User is authenticated, allow access to the page - load data
+                setTimeout(() => {
+                    console.log('Caricamento dati...');
+                    caricaDati();
+                }, 500);
             } else {
-                console.log('Nessuna autenticazione, ma continuo comunque');
+                // User is not authenticated - redirect to login
+                console.log('Access denied - redirecting to login');
+                window.location.href = 'index.html';
             }
         });
     </script>

@@ -184,6 +184,14 @@
             margin-bottom: 15px;
         }
 
+        .stat-icon img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+
         .stat-number {
             font-size: 2.5em;
             font-weight: bold;
@@ -403,7 +411,7 @@
                         <div class="stat-label">Clienti Totali</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon">🏞️</div>
+                        <div class="stat-icon"><img src="icons/terreni-icon.png.png" alt="Terreni"></div>
                         <div class="stat-number" id="total-terreni">-</div>
                         <div class="stat-label">Terreni Gestiti</div>
                     </div>
@@ -476,22 +484,21 @@
         </div>
     </div>
 
+    <!-- Error Handler Centralizzato -->
+    <script src="error-handler.js"></script>
+    <!-- Firebase Configuration Centralizzata -->
+    <script src="firebase-config-shared.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, setDoc, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
-            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
-            projectId: "vendemmia-meccanizzata",
-            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
-            messagingSenderId: "745067977805",
-            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
-            measurementId: "G-6T53WV1GD3"
-        };
+        // Firebase configuration from centralized file
+        if (!window.firebaseConfig) {
+            console.error('Firebase configuration not found! Make sure firebase-config-shared.js is loaded.');
+        }
+        const firebaseConfig = window.firebaseConfig;
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -690,18 +697,18 @@
                 window.location.href = 'index.html';
             } catch (error) {
                 console.error('Logout error:', error);
-                alert('Errore durante il logout');
+                handleFirebaseError(error, 'logout');
             }
         };
 
         // Settings function
         window.showSettings = function() {
-            alert('Funzione Impostazioni in arrivo!');
+            showInfo('Funzione Impostazioni in arrivo!');
         };
 
         // Help function
         window.showHelp = function() {
-            alert('Funzione Aiuto in arrivo!');
+            showInfo('Funzione Aiuto in arrivo!');
         };
 
         // Check authentication state
@@ -733,16 +740,10 @@
                 
             } else {
                 // User is signed out
-                console.log('User not authenticated');
+                console.log('User not authenticated - redirecting to login');
                 
-                // Hide loading, show error
-                loadingDiv.style.display = 'none';
-                errorDiv.style.display = 'block';
-                
-                // Redirect to login after 3 seconds
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 3000);
+                // Redirect to login immediately
+                window.location.href = 'index.html';
             }
         });
     </script>

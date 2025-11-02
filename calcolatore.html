@@ -7,22 +7,26 @@
     <!-- Libreria per generazione PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- Error Handler Centralizzato -->
+    <script src="error-handler.js"></script>
+    <!-- Loading Handler Centralizzato -->
+    <script src="loading-handler.js"></script>
+    <!-- Form Validator Centralizzato -->
+    <script src="form-validator.js"></script>
+    <!-- Firebase Configuration Centralizzata -->
+    <script src="firebase-config-shared.js"></script>
+    
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore, collection, doc, addDoc, updateDoc, getDoc, onSnapshot, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
-            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
-            projectId: "vendemmia-meccanizzata",
-            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
-            messagingSenderId: "745067977805",
-            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
-            measurementId: "G-6T53WV1GD3"
-        };
+        // Firebase configuration from centralized file
+        if (!window.firebaseConfig) {
+            console.error('Firebase configuration not found! Make sure firebase-config-shared.js is loaded.');
+        }
+        const firebaseConfig = window.firebaseConfig;
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -104,12 +108,15 @@
             }
         };
 
-        // Initialize authentication (no redirect)
+        // Initialize authentication check - redirect to login if not authenticated
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                console.log('User authenticated:', user.uid);
+                console.log('User authenticated:', user.email);
+                // User is authenticated, allow access to the page
             } else {
-                console.log('No authentication - using database only');
+                // User is not authenticated - redirect to login
+                console.log('Access denied - redirecting to login');
+                window.location.href = 'index.html';
             }
         });
 
@@ -1015,7 +1022,7 @@
 
                 <!-- Sezione Terreni (visibile solo dopo selezione cliente) -->
                 <div id="terreni-section" class="terreni-section" style="display: none;">
-                    <h3>🏞️ Selezione Terreni</h3>
+                    <h3><img src="icons/terreni-icon.png.png" alt="Terreni" class="terreni-icon-inline" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;"> Selezione Terreni</h3>
                     <div class="terreni-container">
                         <div class="terreni-header">
                             <span id="terreni-cliente-info">Seleziona i terreni da vendemmiare</span>
@@ -1063,7 +1070,7 @@
 
                 <!-- Sezione Campi (NASCOSTA - sostituita da selezione terreni) -->
                 <div class="campi-section" style="display: none;">
-                    <h3 style="color: #8B4513; margin-bottom: 15px;">🏞️ Campi Vendemmiati</h3>
+                    <h3 style="color: #8B4513; margin-bottom: 15px;"><img src="icons/terreni-icon.png.png" alt="Terreni" class="terreni-icon-inline" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;"> Campi Vendemmiati</h3>
                     <div id="campi-container">
                         <!-- I campi verranno aggiunti dinamicamente -->
                     </div>
@@ -1299,8 +1306,16 @@
             clienteSelect.addEventListener('change', function() {
                 const selectedClientId = this.value;
                 if (selectedClientId) {
+                    // Valida campo se validatore è disponibile
+                    if (calcolatoreValidator) {
+                        calcolatoreValidator.clearFieldError(clienteSelect);
+                        clienteSelect.classList.add('field-success');
+                    }
                     selezionaCliente(selectedClientId);
                 } else {
+                    if (calcolatoreValidator) {
+                        calcolatoreValidator.clearFieldError(clienteSelect);
+                    }
                     selectedClient = null;
                     selectedClientTerreni = [];
                     selectedTerreni = [];
@@ -1349,7 +1364,7 @@
             if (!selectedClientTerreni || selectedClientTerreni.length === 0) {
                 terreniList.innerHTML = `
                     <div class="terreno-empty">
-                        <p>🏞️ Nessun terreno disponibile per questo cliente</p>
+                        <p><img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 5px;"> Nessun terreno disponibile per questo cliente</p>
                         <p>Vai su <strong>Anagrafica Clienti</strong> per aggiungere terreni</p>
                     </div>
                 `;
@@ -1486,12 +1501,191 @@
                 if (window.firebaseFunctions) {
                     await window.firebaseFunctions.saveCalculation(calculationData);
                     console.log('Calcolo salvato su Firebase');
+                    return Promise.resolve();
+                } else {
+                    throw new Error('Firebase functions non disponibili');
                 }
             } catch (error) {
                 console.error('Errore salvataggio calcolo su Firebase:', error);
+                throw error;
             }
         }
 
+        // Validatore form calcolatore
+        let calcolatoreValidator;
+        function initCalcolatoreValidator() {
+            // Crea un form virtuale per la validazione (non esiste un vero form nel DOM)
+            const formContainer = document.querySelector('.calculator-container');
+            if (!formContainer) {
+                console.warn('Calculator container non trovato');
+                return;
+            }
+            
+            if (typeof window.FormValidator === 'undefined' || typeof window.ValidationType === 'undefined') {
+                console.warn('FormValidator non disponibile, retry in 500ms...');
+                setTimeout(() => initCalcolatoreValidator(), 500);
+                return;
+            }
+            
+            try {
+                // Creiamo un validatore per i campi principali
+                calcolatoreValidator = {
+                    validate: function() {
+                        const clienteSelect = document.getElementById('cliente-select');
+                        const dataVendemmia = document.getElementById('data-vendemmia');
+                        const destinazione = document.getElementById('destinazione');
+                        const quintali = document.getElementById('quintali');
+                        const sconto = document.getElementById('sconto');
+                        
+                        let isValid = true;
+                        
+                        // Valida cliente
+                        if (!clienteSelect || !clienteSelect.value) {
+                            isValid = false;
+                            this.showFieldError(clienteSelect, 'Seleziona un cliente');
+                        } else {
+                            this.clearFieldError(clienteSelect);
+                        }
+                        
+                        // Valida data vendemmia
+                        if (!dataVendemmia || !dataVendemmia.value) {
+                            isValid = false;
+                            this.showFieldError(dataVendemmia, 'Seleziona la data di vendemmia');
+                        } else {
+                            this.clearFieldError(dataVendemmia);
+                        }
+                        
+                        // Valida destinazione
+                        if (!destinazione || !destinazione.value) {
+                            isValid = false;
+                            this.showFieldError(destinazione, 'Seleziona la destinazione trasporto');
+                        } else {
+                            this.clearFieldError(destinazione);
+                        }
+                        
+                        // Valida quintali (opzionale, ma se presente deve essere >= 0)
+                        if (quintali && quintali.value) {
+                            const quintaliValue = parseFloat(quintali.value);
+                            if (isNaN(quintaliValue) || quintaliValue < 0) {
+                                isValid = false;
+                                this.showFieldError(quintali, 'I quintali devono essere un numero maggiore o uguale a 0');
+                            } else {
+                                this.clearFieldError(quintali);
+                            }
+                        } else {
+                            this.clearFieldError(quintali);
+                        }
+                        
+                        // Valida sconto (opzionale)
+                        if (sconto && sconto.value) {
+                            const scontoValue = parseFloat(sconto.value);
+                            if (isNaN(scontoValue)) {
+                                isValid = false;
+                                this.showFieldError(sconto, 'Lo sconto/maggiorazione deve essere un numero valido');
+                            } else {
+                                this.clearFieldError(sconto);
+                            }
+                        } else {
+                            this.clearFieldError(sconto);
+                        }
+                        
+                        return isValid;
+                    },
+                    showFieldError: function(field, message) {
+                        if (!field) return;
+                        field.classList.add('field-error');
+                        // Rimuovi messaggio errore precedente
+                        const existingError = field.parentElement.querySelector('.error-message');
+                        if (existingError) {
+                            existingError.remove();
+                        }
+                        // Aggiungi messaggio errore
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.textContent = message;
+                        field.parentElement.appendChild(errorDiv);
+                    },
+                    clearFieldError: function(field) {
+                        if (!field) return;
+                        field.classList.remove('field-error', 'field-success');
+                        const existingError = field.parentElement.querySelector('.error-message');
+                        if (existingError) {
+                            existingError.remove();
+                        }
+                    },
+                    reset: function() {
+                        const fields = document.querySelectorAll('#cliente-select, #data-vendemmia, #destinazione, #quintali, #sconto');
+                        fields.forEach(field => {
+                            this.clearFieldError(field);
+                        });
+                    }
+                };
+                
+                // Aggiungi validazione in tempo reale per i campi
+                const dataVendemmia = document.getElementById('data-vendemmia');
+                if (dataVendemmia) {
+                    dataVendemmia.addEventListener('blur', () => {
+                        if (calcolatoreValidator && dataVendemmia.value) {
+                            calcolatoreValidator.clearFieldError(dataVendemmia);
+                            dataVendemmia.classList.add('field-success');
+                        }
+                    });
+                }
+                
+                const destinazione = document.getElementById('destinazione');
+                if (destinazione) {
+                    destinazione.addEventListener('change', () => {
+                        if (calcolatoreValidator && destinazione.value) {
+                            calcolatoreValidator.clearFieldError(destinazione);
+                            destinazione.classList.add('field-success');
+                        }
+                    });
+                }
+                
+                const quintali = document.getElementById('quintali');
+                if (quintali) {
+                    quintali.addEventListener('blur', () => {
+                        if (calcolatoreValidator) {
+                            if (quintali.value) {
+                                const value = parseFloat(quintali.value);
+                                if (!isNaN(value) && value >= 0) {
+                                    calcolatoreValidator.clearFieldError(quintali);
+                                    quintali.classList.add('field-success');
+                                } else {
+                                    calcolatoreValidator.showFieldError(quintali, 'I quintali devono essere un numero maggiore o uguale a 0');
+                                }
+                            } else {
+                                calcolatoreValidator.clearFieldError(quintali);
+                            }
+                        }
+                    });
+                }
+                
+                const sconto = document.getElementById('sconto');
+                if (sconto) {
+                    sconto.addEventListener('blur', () => {
+                        if (calcolatoreValidator) {
+                            if (sconto.value) {
+                                const value = parseFloat(sconto.value);
+                                if (!isNaN(value)) {
+                                    calcolatoreValidator.clearFieldError(sconto);
+                                    sconto.classList.add('field-success');
+                                } else {
+                                    calcolatoreValidator.showFieldError(sconto, 'Lo sconto/maggiorazione deve essere un numero valido');
+                                }
+                            } else {
+                                calcolatoreValidator.clearFieldError(sconto);
+                            }
+                        }
+                    });
+                }
+                
+                console.log('✅ Validatore calcolatore inizializzato');
+            } catch (error) {
+                console.error('Errore inizializzazione validatore calcolatore:', error);
+            }
+        }
+        
         // Inizializza con un campo
         document.addEventListener('DOMContentLoaded', function() {
             caricaTariffeSalvate();
@@ -1499,6 +1693,11 @@
             aggiungiCampo();
             // Imposta data odierna
             document.getElementById('data-vendemmia').value = new Date().toISOString().split('T')[0];
+            
+            // Inizializza validatore dopo un breve delay
+            setTimeout(() => {
+                initCalcolatoreValidator();
+            }, 1500);
             
             // Inizializza Firebase dopo che è stato caricato
             setTimeout(() => {
@@ -1604,16 +1803,18 @@
             salvaTariffeNelStorage();
 
             // Salva su Firebase
-            salvaTariffeSuFirebase();
-
-            // Aggiorna visualizzazione
-            aggiornaVisualizzazioneTariffe();
-
-            // Chiudi modal
-            chiudiImpostazioni();
-
-            // Mostra conferma
-            alert('✅ Tariffe salvate con successo!');
+            salvaTariffeSuFirebase().then(() => {
+                // Aggiorna visualizzazione
+                aggiornaVisualizzazioneTariffe();
+                
+                // Chiudi modal
+                chiudiImpostazioni();
+                
+                // Mostra conferma
+                showSuccess('Tariffe salvate con successo!');
+            }).catch((error) => {
+                handleFirebaseError(error, 'salvataggio tariffe');
+            });
         }
 
         // Chiudi modal cliccando fuori
@@ -1679,6 +1880,19 @@
         }
 
         function calcolaCompenso() {
+            const calcBtn = document.querySelector('button[onclick="calcolaCompenso()"]');
+            
+            // Valida form prima di calcolare
+            if (calcolatoreValidator && !calcolatoreValidator.validate()) {
+                showWarning('Correggi gli errori nei campi obbligatori prima di calcolare');
+                // Focus sul primo campo con errore
+                const firstError = document.querySelector('.field-error');
+                if (firstError) {
+                    firstError.focus();
+                }
+                return;
+            }
+            
             const clienteSelect = document.getElementById('cliente-select');
             const selectedClientId = clienteSelect.value;
             const cliente = selectedClient ? `${selectedClient.nome} ${selectedClient.cognome}` : '';
@@ -1688,16 +1902,14 @@
             const note = document.getElementById('note').value;
             const sconto = parseFloat(document.getElementById('sconto').value) || 0;
 
-            if (!selectedClientId || !dataVendemmia || !destinazione) {
-                alert('Per favore compila tutti i campi obbligatori');
-                return;
-            }
-
             // Verifica che siano stati selezionati dei terreni
             if (selectedTerreni.length === 0) {
-                alert('Per favore seleziona almeno un terreno da vendemmiare');
+                showWarning('Per favore seleziona almeno un terreno da vendemmiare');
                 return;
             }
+            
+            // Mostra loading sul pulsante
+            setButtonLoading(calcBtn, 'Calcolo in corso...');
 
             // *** NUOVA FUNZIONALITÀ: Usa ettariVendemmiati invece di ettari totali ***
             const annoVendemmia = new Date(dataVendemmia).getFullYear();
@@ -1735,7 +1947,7 @@
                 const dataFormattata = new Date(campo.dataVendemmia).toLocaleDateString('it-IT');
                 dettagliCampi += `
                     <div class="result-item">
-                        <span>🏞️ ${campo.nome} (${campo.ettari.toFixed(2)} ha - ${campo.morfologia} + ${campo.tipoPalo}) - 📅 ${dataFormattata}</span>
+                        <span><img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 5px;"> ${campo.nome} (${campo.ettari.toFixed(2)} ha - ${campo.morfologia} + ${campo.tipoPalo}) - 📅 ${dataFormattata}</span>
                         <span>€ ${costoCampo.toFixed(2)}</span>
                     </div>
                 `;
@@ -1757,7 +1969,7 @@
                 
                 return `
                     <div class="result-item">
-                        <span>🏞️ ${terreno.nome} ${hasZoneEscluse ? `(${ettariVendemmiati.toFixed(2)} ha vendemmiati su ${ettariTotali.toFixed(2)} ha totali)` : ''}</span>
+                        <span><img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 5px;"> ${terreno.nome} ${hasZoneEscluse ? `(${ettariVendemmiati.toFixed(2)} ha vendemmiati su ${ettariTotali.toFixed(2)} ha totali)` : ''}</span>
                         <span>${ettariVendemmiati.toFixed(2)} ha</span>
                     </div>
                 `;
@@ -1801,7 +2013,7 @@
                 </div>
                 ` : ''}
                 <hr style="margin: 15px 0;">
-                <h3 style="color: #28a745; margin-bottom: 10px;">🏞️ Terreni Selezionati:</h3>
+                <h3 style="color: #28a745; margin-bottom: 10px;"><img src="icons/terreni-icon.png.png" alt="Terreni" class="terreni-icon-inline" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;"> Terreni Selezionati:</h3>
                 ${dettagliTerreni}
                 <hr style="margin: 15px 0;">
                 <h3 style="color: #8B4513; margin-bottom: 10px;">Dettaglio Campi:</h3>
@@ -1885,14 +2097,22 @@
             }
 
             // Salva calcolo su Firebase
-            salvaCalcoloSuFirebase(calcoloData);
+            salvaCalcoloSuFirebase(calcoloData).then(() => {
+                removeButtonLoading(calcBtn);
+                showSuccess('Calcolo salvato con successo!');
+            }).catch((error) => {
+                removeButtonLoading(calcBtn);
+                handleFirebaseError(error, 'salvataggio calcolo');
+            });
         }
 
         function generaPDF() {
             if (!selectedClient) {
-                alert('Nessun cliente selezionato');
+                showWarning('Nessun cliente selezionato');
                 return;
             }
+            
+            try {
             
             const cliente = `${selectedClient.nome} ${selectedClient.cognome}`;
             const dataVendemmia = document.getElementById('data-vendemmia').value;
@@ -2080,6 +2300,11 @@
             // Salva PDF
             const nomeFile = `Report_Vendemmia_${cliente.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
             doc.save(nomeFile);
+            showSuccess('PDF generato con successo!');
+            } catch (error) {
+                showError('Errore durante la generazione del PDF: ' + error.message);
+                console.error('PDF generation error:', error);
+            }
         }
     </script>
 </body>

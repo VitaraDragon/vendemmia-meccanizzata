@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: verifica che l'utente sia autenticato
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function: verifica che l'utente sia il proprietario del documento
+    // (utile per future implementazioni multi-utente)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ========== COLLECTION: clients ==========
+    // Gestione clienti - solo utenti autenticati possono leggere/scrivere
+    match /clients/{clientId} {
+      // Permetti lettura solo se autenticato
+      allow read: if isAuthenticated();
+      
+      // Permetti scrittura solo se autenticato
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ========== COLLECTION: tariffe ==========
+    // Tariffe vendemmia e trasporto - solo utenti autenticati
+    match /tariffe/{tariffaId} {
+      // Permetti lettura solo se autenticato
+      allow read: if isAuthenticated();
+      
+      // Permetti scrittura solo se autenticato
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ========== COLLECTION: calcoli ==========
+    // Calcoli salvati - solo utenti autenticati
+    match /calcoli/{calcoloId} {
+      // Permetti lettura solo se autenticato
+      allow read: if isAuthenticated();
+      
+      // Permetti scrittura solo se autenticato
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ========== COLLECTION: spese ==========
+    // Spese aziendali - solo utenti autenticati
+    match /spese/{spesaId} {
+      // Permetti lettura solo se autenticato
+      allow read: if isAuthenticated();
+      
+      // Permetti scrittura solo se autenticato
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ========== COLLECTION: preferenze ==========
+    // Preferenze globali (es. anno selezionato) - solo utenti autenticati
+    match /preferenze/{preferenzaId} {
+      // Permetti lettura solo se autenticato
+      allow read: if isAuthenticated();
+      
+      // Permetti scrittura solo se autenticato
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ========== DEFAULT DENY ==========
+    // Nega accesso a tutte le altre collections/documenti non esplicitamente definiti
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

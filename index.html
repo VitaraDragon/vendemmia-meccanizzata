@@ -200,21 +200,18 @@
         </div>
     </div>
 
+    <!-- Firebase Configuration Centralizzata -->
+    <script src="firebase-config-shared.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
-            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
-            projectId: "vendemmia-meccanizzata",
-            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
-            messagingSenderId: "745067977805",
-            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
-            measurementId: "G-6T53WV1GD3"
-        };
+        // Firebase configuration from centralized file
+        if (!window.firebaseConfig) {
+            console.error('Firebase configuration not found! Make sure firebase-config-shared.js is loaded.');
+        }
+        const firebaseConfig = window.firebaseConfig;
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);

@@ -11,7 +11,11 @@
         function loadGoogleMaps() {
             if (typeof window.GOOGLE_MAPS_API_KEY === 'undefined') {
                 console.error('Google Maps API Key not found in google-maps-config.js');
-                alert('ERRORE: Chiave API di Google Maps non configurata. Controlla il file google-maps-config.js');
+                if (typeof showError !== 'undefined') {
+                    showError('Chiave API di Google Maps non configurata. Controlla il file google-maps-config.js');
+                } else {
+                    alert('ERRORE: Chiave API di Google Maps non configurata. Controlla il file google-maps-config.js');
+                }
                 return;
             }
             
@@ -28,22 +32,25 @@
             loadGoogleMaps();
         }
     </script>
+    <!-- Error Handler Centralizzato -->
+    <script src="error-handler.js"></script>
+    <!-- Loading Handler Centralizzato -->
+    <script src="loading-handler.js"></script>
+    <!-- Form Validator Centralizzato -->
+    <script src="form-validator.js"></script>
+    <!-- Firebase Configuration Centralizzata -->
+    <script src="firebase-config-shared.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, query, orderBy, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpS12dA3cOLceaxHNMhntEhgPyfws0RSE",
-            authDomain: "vendemmia-meccanizzata.firebaseapp.com",
-            projectId: "vendemmia-meccanizzata",
-            storageBucket: "vendemmia-meccanizzata.firebasestorage.app",
-            messagingSenderId: "745067977805",
-            appId: "1:745067977805:web:095dd00b16f9ad2f199004",
-            measurementId: "G-6T53WV1GD3"
-        };
+        // Firebase configuration from centralized file
+        if (!window.firebaseConfig) {
+            console.error('Firebase configuration not found! Make sure firebase-config-shared.js is loaded.');
+        }
+        const firebaseConfig = window.firebaseConfig;
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -74,34 +81,37 @@
         // Setup listener for anno changes
         let annoListener = null;
 
-        // Initialize authentication (no redirect)
+        // Initialize authentication check - redirect to login if not authenticated
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                console.log('User authenticated:', user.uid);
-            } else {
-                console.log('No authentication - using database only');
-            }
-            
-            // Load anno selezionato da Firestore
-            currentYear = await getAnnoSelezionato();
-            console.log('Anno selezionato per questa pagina:', currentYear);
-            
-            // Setup real-time listener for anno changes
-            const annoRef = doc(db, 'preferenze', 'annoSelezionato');
-            annoListener = onSnapshot(annoRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const newYear = snapshot.data().anno;
-                    if (newYear !== currentYear) {
-                        currentYear = newYear;
-                        console.log('Anno aggiornato in tempo reale:', currentYear);
-                        // Refresh clients list to update status indicators
-                        loadClients();
+                console.log('User authenticated:', user.email);
+                // User is authenticated, allow access to the page
+                
+                // Load anno selezionato da Firestore
+                currentYear = await getAnnoSelezionato();
+                console.log('Anno selezionato per questa pagina:', currentYear);
+                
+                // Setup real-time listener for anno changes
+                const annoRef = doc(db, 'preferenze', 'annoSelezionato');
+                annoListener = onSnapshot(annoRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const newYear = snapshot.data().anno;
+                        if (newYear !== currentYear) {
+                            currentYear = newYear;
+                            console.log('Anno aggiornato in tempo reale:', currentYear);
+                            // Refresh clients list to update status indicators
+                            loadClients();
+                        }
                     }
-                }
-            });
-            
-            // Load clients regardless of auth state
-            loadClients();
+                });
+                
+                // Load clients only if authenticated
+                loadClients();
+            } else {
+                // User is not authenticated - redirect to login
+                console.log('Access denied - redirecting to login');
+                window.location.href = 'index.html';
+            }
         });
 
         console.log('Firebase initialized successfully');
@@ -354,6 +364,23 @@
 
         .btn-terreni:hover {
             background: #218838;
+        }
+
+        .btn-terreni img,
+        .terreni-icon-inline {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        h2 .terreni-icon-inline,
+        h3 .terreni-icon-inline {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 8px;
         }
 
         .btn-edit {
@@ -942,7 +969,7 @@
     <div id="terreni-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="terreni-modal-title">🏞️ Gestione Terreni</h2>
+                <h2 id="terreni-modal-title"><img src="icons/terreni-icon.png.png" alt="Terreni" class="terreni-icon-inline"> Gestione Terreni</h2>
                 <button class="close" onclick="closeTerreniModal()">&times;</button>
             </div>
             <div style="margin-bottom: 20px;">
@@ -1212,7 +1239,7 @@
             const address = document.getElementById('map-search').value;
 
             if (!address) {
-                alert('Inserisci un indirizzo da cercare');
+                showWarning('Inserisci un indirizzo da cercare');
                 return;
             }
 
@@ -1228,7 +1255,7 @@
                         title: address
                     });
                 } else {
-                    alert('Indirizzo non trovato: ' + status);
+                    showError('Indirizzo non trovato: ' + status);
                 }
             });
         }
@@ -1269,7 +1296,7 @@
         // Calculate area
         function calculateArea() {
             if (!polygon || currentPolygonCoords.length < 3) {
-                alert('Traccia prima i confini del terreno');
+                showWarning('Traccia prima i confini del terreno');
                 return;
             }
 
@@ -1364,7 +1391,7 @@
 
         // Load clients from Firebase
         async function loadClients() {
-            try {
+            return withLoading(async () => {
                 console.log('Loading clients from Firebase...');
                 const querySnapshot = await window.firebaseFunctions.getDocs(window.firebaseFunctions.query(window.firebaseFunctions.collection(window.db, 'clients'), window.firebaseFunctions.orderBy('nome')));
                 console.log('Query snapshot size:', querySnapshot.size);
@@ -1379,11 +1406,7 @@
                 filteredClients = [...clients];
                 updateStats();
                 renderClients();
-            } catch (error) {
-                console.error('Error loading clients:', error);
-                console.error('Error details:', error.message, error.code);
-                alert(`Errore nel caricamento dei clienti: ${error.message}`);
-            }
+            }, 'Caricamento clienti...', { showGlobalLoading: false });
         }
 
         // Update statistics
@@ -1481,7 +1504,7 @@
                         <div class="client-info">${client.indirizzo || '-'}</div>
                         <div class="client-info">${client.cellulare || '-'}</div>
                         <div class="actions">
-                            <button class="action-btn btn-terreni" onclick="manageTerreni('${client.id}')">🏞️ Terreni</button>
+                            <button class="action-btn btn-terreni" onclick="manageTerreni('${client.id}')"><img src="icons/terreni-icon.png.png" alt="Terreni"> Terreni</button>
                             <button class="action-btn btn-edit" onclick="editClient('${client.id}')">✏️ Modifica</button>
                             <button class="action-btn btn-delete" onclick="deleteClient('${client.id}')">🗑️ Elimina</button>
                         </div>
@@ -1517,6 +1540,16 @@
             document.getElementById('modal-title').textContent = '➕ Aggiungi Nuovo Cliente';
             document.getElementById('client-form').reset();
             document.getElementById('client-id').value = '';
+            
+            // Inizializza validatore se non esiste già
+            if (!clientFormValidator) {
+                initClientFormValidator();
+            }
+            
+            // Reset validazione
+            if (clientFormValidator) {
+                clientFormValidator.reset();
+            }
             document.getElementById('client-modal').style.display = 'block';
         }
 
@@ -1536,11 +1569,21 @@
                     document.getElementById('indirizzo').value = client.indirizzo || '';
                     document.getElementById('cellulare').value = client.cellulare || '';
                     
+                    // Inizializza validatore se non esiste già
+                    if (!clientFormValidator) {
+                        initClientFormValidator();
+                    }
+                    
+                    // Reset validazione
+                    if (clientFormValidator) {
+                        clientFormValidator.reset();
+                    }
+                    
                     document.getElementById('client-modal').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading client for edit:', error);
-                alert('❌ Errore nel caricamento del cliente');
+                handleFirebaseError(error, 'caricamento cliente');
             }
         }
 
@@ -1629,7 +1672,7 @@
                 }
             } catch (error) {
                 console.error('Error loading client for terreni:', error);
-                alert('❌ Errore nel caricamento dei terreni del cliente');
+                handleFirebaseError(error, 'caricamento terreni');
             }
         }
 
@@ -1640,12 +1683,14 @@
             }
 
             try {
-                await window.firebaseFunctions.deleteDoc(window.firebaseFunctions.doc(window.db, 'clients', clientId));
-                alert('✅ Cliente eliminato con successo!');
-                loadClients();
+                await withLoading(async () => {
+                    await window.firebaseFunctions.deleteDoc(window.firebaseFunctions.doc(window.db, 'clients', clientId));
+                    showSuccess('Cliente eliminato con successo!');
+                    await loadClients();
+                }, 'Eliminazione cliente...', { showGlobalLoading: false });
             } catch (error) {
                 console.error('Error deleting client:', error);
-                alert('❌ Errore nell\'eliminazione del cliente');
+                handleFirebaseError(error, 'eliminazione cliente');
             }
         }
 
@@ -1654,9 +1699,70 @@
             document.getElementById('client-modal').style.display = 'none';
         }
 
+        // Inizializza validazione form clienti
+        let clientFormValidator;
+        function initClientFormValidator() {
+            const form = document.getElementById('client-form');
+            if (!form) {
+                console.warn('Form client-form non trovato durante inizializzazione');
+                return;
+            }
+            
+            // Controlla se FormValidator è disponibile
+            if (typeof window.FormValidator === 'undefined' || typeof window.ValidationType === 'undefined') {
+                console.error('FormValidator o ValidationType non disponibili! Verifica che form-validator.js sia caricato.');
+                return;
+            }
+            
+            try {
+                clientFormValidator = new window.FormValidator(form);
+                
+                // Aggiungi regole di validazione
+                clientFormValidator.addRule('nome', [
+                    { type: window.ValidationType.REQUIRED, message: 'Il nome è obbligatorio' },
+                    { type: window.ValidationType.MIN_LENGTH, value: 2, message: 'Il nome deve contenere almeno 2 caratteri' },
+                    { type: window.ValidationType.MAX_LENGTH, value: 50, message: 'Il nome non può superare 50 caratteri' }
+                ]);
+                
+                clientFormValidator.addRule('cognome', [
+                    { type: window.ValidationType.REQUIRED, message: 'Il cognome è obbligatorio' },
+                    { type: window.ValidationType.MIN_LENGTH, value: 2, message: 'Il cognome deve contenere almeno 2 caratteri' },
+                    { type: window.ValidationType.MAX_LENGTH, value: 50, message: 'Il cognome non può superare 50 caratteri' }
+                ]);
+                
+                clientFormValidator.addRule('indirizzo', [
+                    { type: window.ValidationType.MAX_LENGTH, value: 200, message: 'L\'indirizzo non può superare 200 caratteri' }
+                ]);
+                
+                // Cellulare è opzionale, ma se inserito deve essere valido
+                clientFormValidator.addRule('cellulare', [
+                    { type: window.ValidationType.PHONE, message: 'Inserisci un numero di telefono valido (minimo 7 caratteri)' },
+                    { type: window.ValidationType.MAX_LENGTH, value: 20, message: 'Il numero non può superare 20 caratteri' }
+                ]);
+                
+                console.log('✅ Validatore form clienti inizializzato correttamente');
+            } catch (error) {
+                console.error('Errore inizializzazione validatore clienti:', error);
+            }
+        }
+
         // Form submission
         document.getElementById('client-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            const submitBtn = e.target.querySelector('button[type="submit"], input[type="submit"]') || 
+                             e.target.closest('form')?.querySelector('button[type="submit"]');
+            
+            // Valida form prima di salvare
+            if (clientFormValidator && !clientFormValidator.validate()) {
+                showWarning('Correggi gli errori nel form prima di salvare');
+                // Focus sul primo campo con errore
+                const firstError = document.querySelector('.field-error');
+                if (firstError) {
+                    firstError.focus();
+                }
+                return;
+            }
             
             const clientId = document.getElementById('client-id').value;
             const clientData = {
@@ -1669,29 +1775,38 @@
             };
 
             try {
-                console.log('Saving client data:', clientData);
-                
-                if (clientId) {
-                    // Update existing client
-                    console.log('Updating existing client:', clientId);
-                    const clientRef = window.firebaseFunctions.doc(window.db, 'clients', clientId);
-                    await window.firebaseFunctions.updateDoc(clientRef, clientData);
-                    alert('✅ Cliente aggiornato con successo!');
-                } else {
-                    // Add new client
-                    console.log('Adding new client');
-                    clientData.createdAt = new Date();
-                    const docRef = await window.firebaseFunctions.addDoc(window.firebaseFunctions.collection(window.db, 'clients'), clientData);
-                    console.log('Client added with ID:', docRef.id);
-                    alert('✅ Cliente aggiunto con successo!');
-                }
-                
-                closeModal();
-                loadClients();
+                await withLoading(async () => {
+                    console.log('Saving client data:', clientData);
+                    
+                    if (clientId) {
+                        // Update existing client
+                        console.log('Updating existing client:', clientId);
+                        const clientRef = window.firebaseFunctions.doc(window.db, 'clients', clientId);
+                        await window.firebaseFunctions.updateDoc(clientRef, clientData);
+                        showSuccess('Cliente aggiornato con successo!');
+                    } else {
+                        // Add new client
+                        console.log('Adding new client');
+                        clientData.createdAt = new Date();
+                        const docRef = await window.firebaseFunctions.addDoc(window.firebaseFunctions.collection(window.db, 'clients'), clientData);
+                        console.log('Client added with ID:', docRef.id);
+                        showSuccess('Cliente aggiunto con successo!');
+                    }
+                    
+                    // Reset validazione
+                    if (clientFormValidator) {
+                        clientFormValidator.reset();
+                    }
+                    closeModal();
+                    await loadClients();
+                }, clientId ? 'Aggiornamento cliente...' : 'Aggiunta nuovo cliente...', {
+                    button: submitBtn,
+                    showGlobalLoading: false
+                });
             } catch (error) {
                 console.error('Error saving client:', error);
                 console.error('Error details:', error.message, error.code);
-                alert(`❌ Errore nel salvataggio del cliente: ${error.message}`);
+                handleFirebaseError(error, 'salvataggio cliente');
             }
         });
 
@@ -1842,6 +1957,16 @@
             document.getElementById('terreno-modal-title').textContent = '➕ Aggiungi Nuovo Terreno';
             document.getElementById('terreno-form').reset();
             document.getElementById('terreno-index').value = '';
+            
+            // Inizializza validatore se non esiste già
+            if (!terrenoFormValidator) {
+                initTerrenoFormValidator();
+            }
+            
+            // Reset validazione
+            if (terrenoFormValidator) {
+                terrenoFormValidator.reset();
+            }
             document.getElementById('terreno-modal').style.display = 'block';
             
             // Verify submit button is visible
@@ -1886,6 +2011,16 @@
             document.getElementById('terreno-tipoUva').value = terreno.tipoUva || '';
             document.getElementById('terreno-morfologia').value = terreno.morfologia || '';
             document.getElementById('terreno-tipoPalo').value = terreno.tipoPalo || '';
+            
+            // Inizializza validatore se non esiste già
+            if (!terrenoFormValidator) {
+                initTerrenoFormValidator();
+            }
+            
+            // Reset validazione
+            if (terrenoFormValidator) {
+                terrenoFormValidator.reset();
+            }
             
             document.getElementById('terreno-modal').style.display = 'block';
             
@@ -2000,7 +2135,7 @@
             
             // Check if terreno is in piano first
             if (!isInPiano(terreno, index)) {
-                alert('⚠️ Questo terreno non è incluso nel piano di vendemmia per quest\'anno. Spunta prima la checkbox "In piano ' + currentYear + '".');
+                showWarning('Questo terreno non è incluso nel piano di vendemmia per quest\'anno. Spunta prima la checkbox "In piano ' + currentYear + '".');
                 // Uncheck the checkbox
                 const checkbox = document.querySelector(`input[onchange="toggleVendemmiato(${index})"]`);
                 if (checkbox) checkbox.checked = false;
@@ -2080,7 +2215,7 @@
         
         function initMapZoneEscluse(terreno) {
             if (typeof google === 'undefined' || !google.maps) {
-                alert('Google Maps non disponibile');
+                showError('Google Maps non disponibile');
                 return;
             }
             
@@ -2202,7 +2337,7 @@
         
         function clearLastZoneEsclusa() {
             if (zoneEsclusePolygons.length === 0) {
-                alert('Nessuna zona esclusa da cancellare');
+                showInfo('Nessuna zona esclusa da cancellare');
                 return;
             }
             
@@ -2351,7 +2486,7 @@
                     console.log('Terreni auto-saved on modal close');
                 } catch (error) {
                     console.error('Error auto-saving on close:', error);
-                    alert('⚠️ Errore nel salvataggio automatico. Riprova.');
+                    handleFirebaseError(error, 'salvataggio automatico terreni');
                     return; // Don't close modal if save failed
                 }
             }
@@ -2409,12 +2544,50 @@
         async function saveTerreni() {
             try {
                 await saveTerreniToFirebase();
-                alert('✅ Terreni salvati con successo!');
+                showSuccess('Terreni salvati con successo!');
                 closeTerreniModal();
                 // Don't reload clients - keep current data
             } catch (error) {
                 console.error('Error saving terreni:', error);
-                alert('❌ Errore nel salvataggio dei terreni');
+                handleFirebaseError(error, 'salvataggio terreni');
+            }
+        }
+
+        // Inizializza validazione form terreno
+        let terrenoFormValidator;
+        function initTerrenoFormValidator() {
+            const form = document.getElementById('terreno-form');
+            if (!form) {
+                console.warn('Form terreno-form non trovato durante inizializzazione');
+                return;
+            }
+            
+            // Controlla se FormValidator è disponibile
+            if (typeof window.FormValidator === 'undefined' || typeof window.ValidationType === 'undefined') {
+                console.error('FormValidator o ValidationType non disponibili! Verifica che form-validator.js sia caricato.');
+                return;
+            }
+            
+            try {
+                terrenoFormValidator = new window.FormValidator(form);
+                
+                // Aggiungi regole di validazione
+                terrenoFormValidator.addRule('terreno-nome', [
+                    { type: window.ValidationType.REQUIRED, message: 'Il nome del terreno è obbligatorio' },
+                    { type: window.ValidationType.MIN_LENGTH, value: 2, message: 'Il nome deve contenere almeno 2 caratteri' },
+                    { type: window.ValidationType.MAX_LENGTH, value: 100, message: 'Il nome non può superare 100 caratteri' }
+                ]);
+                
+                terrenoFormValidator.addRule('terreno-ettari', [
+                    { type: window.ValidationType.REQUIRED, message: 'Gli ettari sono obbligatori' },
+                    { type: window.ValidationType.NUMBER, message: 'Gli ettari devono essere un numero' },
+                    { type: window.ValidationType.MIN_VALUE, value: 0.01, message: 'Gli ettari devono essere maggiori di 0' },
+                    { type: window.ValidationType.MAX_VALUE, value: 10000, message: 'Gli ettari non possono superare 10000' }
+                ]);
+                
+                console.log('✅ Validatore form terreno inizializzato correttamente');
+            } catch (error) {
+                console.error('Errore inizializzazione validatore terreno:', error);
             }
         }
 
@@ -2422,6 +2595,17 @@
         document.getElementById('terreno-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             console.log('Form submitted!');
+            
+            // Valida form prima di salvare
+            if (terrenoFormValidator && !terrenoFormValidator.validate()) {
+                showWarning('Correggi gli errori nel form prima di salvare');
+                // Focus sul primo campo con errore
+                const firstError = document.querySelector('#terreno-modal .field-error');
+                if (firstError) {
+                    firstError.focus();
+                }
+                return;
+            }
             
             // Check for surface difference before saving
             if (polygon && currentPolygonCoords.length >= 3) {
@@ -2439,6 +2623,10 @@
                     
                     if (confirmed) {
                         document.getElementById('terreno-ettari').value = calculatedArea.toFixed(2);
+                        // Rivalida dopo modifica
+                        if (terrenoFormValidator) {
+                            terrenoFormValidator.validateField('terreno-ettari');
+                        }
                     }
                 }
             }
@@ -2496,38 +2684,51 @@
             terreniModified = true;
             
             try {
-                // Show saving feedback
                 const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
-                console.log('Submit button found:', submitBtn);
-                const originalText = submitBtn ? submitBtn.textContent : 'Salva';
-                if (submitBtn) {
-                    submitBtn.textContent = '💾 Salvando...';
-                    submitBtn.disabled = true;
-                }
                 
-                // Auto-save to Firebase
-                await saveTerreniToFirebase();
-                
-                // Show success feedback
-                if (submitBtn) {
-                    submitBtn.textContent = '✅ Salvato!';
-                }
-                setTimeout(() => {
+                await withLoading(async () => {
+                    // Auto-save to Firebase
+                    await saveTerreniToFirebase();
+                    
+                    // Reset validazione
+                    if (terrenoFormValidator) {
+                        terrenoFormValidator.reset();
+                    }
                     renderTerreni();
                     closeTerrenoModal();
-                }, 500);
+                }, 'Salvataggio terreno...', {
+                    button: submitBtn,
+                    showGlobalLoading: false
+                });
                 
             } catch (error) {
                 console.error('Error saving terreno:', error);
-                alert('❌ Errore nel salvataggio del terreno. Riprova.');
-                
-                // Reset button
-                const submitBtn = document.querySelector('#terreno-form button[type="submit"]');
-                if (submitBtn) {
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
-                }
+                handleFirebaseError(error, 'salvataggio terreno');
             }
+        });
+
+        // Helper function per verificare disponibilità FormValidator
+        function waitForFormValidator(callback, maxAttempts = 10, attempt = 0) {
+            if (typeof window.FormValidator !== 'undefined' && typeof window.ValidationType !== 'undefined') {
+                callback();
+            } else if (attempt < maxAttempts) {
+                setTimeout(() => {
+                    waitForFormValidator(callback, maxAttempts, attempt + 1);
+                }, 100);
+            } else {
+                console.warn('FormValidator non disponibile dopo ' + (maxAttempts * 100) + 'ms');
+            }
+        }
+        
+        // Inizializza validatori quando necessario (non immediatamente)
+        // I form potrebbero non essere ancora nel DOM all'avvio
+        // Si inizializzeranno quando i modali vengono aperti
+        
+        // Prova a inizializzare dopo che tutto è caricato
+        waitForFormValidator(() => {
+            console.log('FormValidator disponibile, tentativo inizializzazione validatori...');
+            initClientFormValidator();
+            initTerrenoFormValidator();
         });
 
         // Close modal when clicking outside
