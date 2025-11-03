@@ -877,6 +877,77 @@
             .form-row {
                 grid-template-columns: 1fr;
             }
+
+            /* Touch-friendly buttons */
+            .btn,
+            .action-btn,
+            button[type="submit"],
+            button[type="button"]:not(.close) {
+                min-height: 44px;
+                min-width: 44px;
+                padding: 12px 20px;
+                font-size: 16px;
+            }
+
+            .btn-edit-small,
+            .btn-delete-small {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 10px;
+                font-size: 18px;
+            }
+
+            .close {
+                min-width: 44px;
+                min-height: 44px;
+                font-size: 28px;
+            }
+
+            /* Modal optimization for mobile */
+            .modal-content {
+                width: 95% !important;
+                max-width: 95% !important;
+                margin: 10px auto;
+                padding: 20px 15px;
+                max-height: 90vh;
+            }
+
+            #terreni-modal .modal-content {
+                max-width: 95% !important;
+                width: 95% !important;
+                padding: 15px 10px;
+            }
+
+            .modal-header {
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+            }
+
+            .modal-header h2 {
+                font-size: 1.2em;
+            }
+
+            .map-container {
+                height: 300px;
+            }
+
+            /* Input fields optimization */
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            input[type="email"],
+            input[type="tel"],
+            select,
+            textarea {
+                font-size: 16px !important;
+                min-height: 44px;
+                padding: 12px 15px;
+            }
+
+            .search-input {
+                font-size: 16px !important;
+                min-height: 44px;
+            }
         }
     </style>
 </head>
@@ -1389,6 +1460,21 @@
             updateAreaInfo();
         }
 
+        // Helper function to escape HTML special characters
+        function escapeHtml(text) {
+            if (text === null || text === undefined) {
+                return '';
+            }
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
         // Load clients from Firebase
         async function loadClients() {
             return withLoading(async () => {
@@ -1494,19 +1580,25 @@
 
             container.innerHTML = filteredClients.map(client => {
                 const status = getClientCompletionStatus(client);
+                const escapedId = escapeHtml(client.id);
+                const escapedNome = escapeHtml(client.nome);
+                const escapedCognome = escapeHtml(client.cognome || '');
+                const escapedIndirizzo = escapeHtml(client.indirizzo || '');
+                const escapedCellulare = escapeHtml(client.cellulare || '');
+                const escapedStatusTitle = escapeHtml(status.title);
                 return `
                     <div class="table-row">
                         <div class="client-name">
-                            <span style="margin-right: 8px; font-size: 1.2em;" title="${status.title}">${status.icon}</span>
-                            ${client.nome}
+                            <span style="margin-right: 8px; font-size: 1.2em;" title="${escapedStatusTitle}">${status.icon}</span>
+                            ${escapedNome}
                         </div>
-                        <div class="client-info">${client.cognome}</div>
-                        <div class="client-info">${client.indirizzo || '-'}</div>
-                        <div class="client-info">${client.cellulare || '-'}</div>
+                        <div class="client-info">${escapedCognome || '-'}</div>
+                        <div class="client-info">${escapedIndirizzo || '-'}</div>
+                        <div class="client-info">${escapedCellulare || '-'}</div>
                         <div class="actions">
-                            <button class="action-btn btn-terreni" onclick="manageTerreni('${client.id}')"><img src="icons/terreni-icon.png.png" alt="Terreni"> Terreni</button>
-                            <button class="action-btn btn-edit" onclick="editClient('${client.id}')">✏️ Modifica</button>
-                            <button class="action-btn btn-delete" onclick="deleteClient('${client.id}')">🗑️ Elimina</button>
+                            <button class="action-btn btn-terreni" onclick="manageTerreni('${escapedId}')"><img src="icons/terreni-icon.png.png" alt="Terreni"> Terreni</button>
+                            <button class="action-btn btn-edit" onclick="editClient('${escapedId}')">✏️ Modifica</button>
+                            <button class="action-btn btn-delete" onclick="deleteClient('${escapedId}')">🗑️ Elimina</button>
                         </div>
                     </div>
                 `;
@@ -1901,54 +1993,66 @@
                         <div class="col-stato">Vendemmiato</div>
                         <div class="col-azioni">Azioni</div>
                     </div>
-                    ${currentTerreni.map((terreno, index) => `
+                    ${currentTerreni.map((terreno, index) => {
+                        const escapedNome = escapeHtml(terreno.nome || 'Senza nome');
+                        const escapedTipoUva = escapeHtml(terreno.tipoUva || '');
+                        const escapedMorfologia = escapeHtml(terreno.morfologia || '');
+                        const escapedTipoPalo = escapeHtml(terreno.tipoPalo || '');
+                        const ettariValue = terreno.ettari ? terreno.ettari.toFixed(2) : '0.00';
+                        const effectiveHa = calculateEffectiveHa(terreno).toFixed(2);
+                        const isInPianoValue = isInPiano(terreno, index);
+                        const isVendemmiatoValue = isVendemmiato(terreno);
+                        const inPianoTitle = escapeHtml(isInPianoValue ? 'Il terreno è in piano per quest\'anno' : 'Da aggiungere al piano di vendemmia');
+                        const vendemmiatoTitle = escapeHtml(isVendemmiatoValue ? 'Vendemmia completata per anno ' + currentYear : 'Da vendemmiare per anno ' + currentYear);
+                        return `
                         <div class="terreno-row">
-                            <div class="col-nome">
-                                <span class="terreno-name">${terreno.nome || 'Senza nome'}</span>
+                            <div class="col-nome" data-label="Nome Campo">
+                                <span class="terreno-name">${escapedNome}</span>
                             </div>
-                            <div class="col-uva">
-                                <span class="terreno-uva">${terreno.tipoUva || '-'}</span>
+                            <div class="col-uva" data-label="Varietà Uva">
+                                <span class="terreno-uva">${escapedTipoUva || '-'}</span>
                             </div>
-                            <div class="col-morfologia">
-                                <span class="terreno-morfologia">${terreno.morfologia || '-'}</span>
+                            <div class="col-morfologia" data-label="Morfologia">
+                                <span class="terreno-morfologia">${escapedMorfologia || '-'}</span>
                             </div>
-                            <div class="col-palo">
-                                <span class="terreno-palo">${terreno.tipoPalo || '-'}</span>
+                            <div class="col-palo" data-label="Tipo Palo">
+                                <span class="terreno-palo">${escapedTipoPalo || '-'}</span>
                             </div>
-                            <div class="col-ettari">
-                                <span class="terreno-ettari">${terreno.ettari ? terreno.ettari.toFixed(2) : '0.00'}</span>
-                                ${hasZoneEscluse(terreno) ? `<span style="color: #ffc107; margin-left: 5px; cursor: help;" title="Zone escluse presenti - Ha effettivi: ${calculateEffectiveHa(terreno).toFixed(2)}">⚠️</span>` : ''}
+                            <div class="col-ettari" data-label="Ettari">
+                                <span class="terreno-ettari">${ettariValue}</span>
+                                ${hasZoneEscluse(terreno) ? `<span style="color: #ffc107; margin-left: 5px; cursor: help;" title="Zone escluse presenti - Ha effettivi: ${effectiveHa}">⚠️</span>` : ''}
                             </div>
-                            <div class="col-mappa">
+                            <div class="col-mappa" data-label="Mappa">
                                 ${terreno.polygonCoords && terreno.polygonCoords.length > 0 ? 
                                     '<span class="map-indicator" title="Confini tracciati">📍</span>' : 
                                     '<span class="map-indicator no-map" title="Nessun confine tracciato">❌</span>'
                                 }
                             </div>
-                            <div class="col-in-piano">
+                            <div class="col-in-piano" data-label="In piano ${currentYear}">
                                 <label style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
                                     <input type="checkbox" 
-                                           ${isInPiano(terreno, index) ? 'checked' : ''} 
+                                           ${isInPianoValue ? 'checked' : ''} 
                                            onchange="toggleInPiano(${index})"
                                            style="width: 20px; height: 20px; cursor: pointer;"
-                                           title="${isInPiano(terreno, index) ? 'Il terreno è in piano per quest\'anno' : 'Da aggiungere al piano di vendemmia'}">
+                                           title="${inPianoTitle}">
                                 </label>
                             </div>
-                            <div class="col-stato">
+                            <div class="col-stato" data-label="Vendemmiato">
                                 <label style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
                                     <input type="checkbox" 
-                                           ${isVendemmiato(terreno) ? 'checked' : ''} 
+                                           ${isVendemmiatoValue ? 'checked' : ''} 
                                            onchange="toggleVendemmiato(${index})"
                                            style="width: 20px; height: 20px; cursor: pointer;"
-                                           title="${isVendemmiato(terreno) ? 'Vendemmia completata per anno ' + currentYear : 'Da vendemmiare per anno ' + currentYear}">
+                                           title="${vendemmiatoTitle}">
                                 </label>
                             </div>
-                            <div class="col-azioni">
+                            <div class="col-azioni" data-label="Azioni">
                                 <button onclick="editTerreno(${index})" class="btn-edit-small" title="Modifica">✏️</button>
                                 <button onclick="deleteTerreno(${index})" class="btn-delete-small" title="Elimina">🗑️</button>
                             </div>
                         </div>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -2638,10 +2742,22 @@
                 tipoUva: document.getElementById('terreno-tipoUva').value.trim(),
                 morfologia: document.getElementById('terreno-morfologia').value.trim(),
                 tipoPalo: document.getElementById('terreno-tipoPalo').value.trim(),
-                polygonCoords: currentPolygonCoords.length > 0 ? currentPolygonCoords.map(coord => ({
-                    lat: coord.lat(),
-                    lng: coord.lng()
-                })) : []
+                polygonCoords: currentPolygonCoords.length > 0 ? currentPolygonCoords.map(coord => {
+                    // Handle both google.maps.LatLng objects and plain {lat, lng} objects
+                    if (typeof coord.lat === 'function') {
+                        // It's a google.maps.LatLng object
+                        return {
+                            lat: coord.lat(),
+                            lng: coord.lng()
+                        };
+                    } else {
+                        // It's already a plain object {lat, lng}
+                        return {
+                            lat: coord.lat,
+                            lng: coord.lng
+                        };
+                    }
+                }) : []
             };
             
             // Preserve vendemmiati status (multi-year) if editing existing terreno

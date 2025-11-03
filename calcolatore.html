@@ -914,6 +914,53 @@
             .header h1 {
                 font-size: 2em;
             }
+
+            /* Touch-friendly buttons */
+            .btn,
+            button[type="submit"],
+            button[type="button"]:not(.close) {
+                min-height: 44px;
+                min-width: 44px;
+                padding: 12px 20px;
+                font-size: 16px;
+            }
+
+            .close {
+                min-width: 44px;
+                min-height: 44px;
+                font-size: 28px;
+            }
+
+            /* Modal optimization for mobile */
+            .modal-content {
+                width: 95% !important;
+                max-width: 95% !important;
+                margin: 10px auto;
+                padding: 20px 15px;
+                max-height: 90vh;
+            }
+
+            .modal-header {
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+            }
+
+            .modal-header h2 {
+                font-size: 1.2em;
+            }
+
+            /* Input fields optimization */
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            input[type="email"],
+            input[type="tel"],
+            select,
+            textarea {
+                font-size: 16px !important;
+                min-height: 44px;
+                padding: 12px 15px;
+            }
         }
     </style>
 </head>
