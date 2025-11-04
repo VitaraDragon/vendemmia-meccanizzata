@@ -884,7 +884,27 @@
             });
 
             // Filtro varietà uva
-            const uvaSet = new Set();
+            // Lista completa delle varietà disponibili (deve corrispondere a quella nel modal terreno)
+            const varietaDisponibili = [
+                'Sangiovese',
+                'Trebbiano',
+                'Albana',
+                'Chardonnay',
+                'Merlot',
+                'Cabernet',
+                'Pinot Bianco',
+                'Pinot Grigio',
+                'Pinot Nero',
+                'Famoso',
+                'Cagnina',
+                'Cabernet Sauvignon',
+                'Malvasia',
+                'Pignoletto',
+                'Altro'
+            ];
+            
+            // Aggiungi anche le varietà presenti nei dati esistenti (per compatibilità con dati custom)
+            const uvaSet = new Set(varietaDisponibili);
             filteredData.forEach(calc => {
                 if (calc.terreniSelezionati && Array.isArray(calc.terreniSelezionati)) {
                     calc.terreniSelezionati.forEach(terreno => {
