@@ -1,18 +1,19 @@
 // Service Worker per PWA - GFV Global Farm View
 const CACHE_NAME = 'gfv-vendemmia-v1';
+// Usa path relativi per compatibilità con GitHub Pages
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/home.html',
-  '/calcolatore.html',
-  '/anagrafica_clienti.html',
-  '/bilancio.html',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/firebase-config-shared.js',
-  '/error-handler.js',
-  '/loading-handler.js',
-  '/form-validator.js'
+  './',
+  './index.html',
+  './home.html',
+  './calcolatore.html',
+  './anagrafica_clienti.html',
+  './bilancio.html',
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
+  './firebase-config-shared.js',
+  './error-handler.js',
+  './loading-handler.js',
+  './form-validator.js'
 ];
 
 // Installazione Service Worker
