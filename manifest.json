@@ -1,6 +1,6 @@
 {
-  "name": "GFV Global Farm View - Vendemmia Meccanizzata",
-  "short_name": "GFV Vendemmia",
+  "name": "Vendemmia Meccanizzata",
+  "short_name": "Vendemmia",
   "description": "Sistema completo per la gestione della vendemmia meccanizzata",
   "start_url": "./home.html",
   "scope": "./",
@@ -74,4 +74,3 @@
   "screenshots": [],
   "prefer_related_applications": false
 }
-

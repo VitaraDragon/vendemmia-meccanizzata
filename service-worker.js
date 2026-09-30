@@ -1,5 +1,5 @@
-// Service Worker per PWA - GFV Global Farm View
-const CACHE_NAME = 'gfv-vendemmia-v1';
+// Service Worker per PWA - Vendemmia Meccanizzata
+const CACHE_NAME = 'vendemmia-meccanizzata-v2';
 // Usa path relativi per compatibilità con GitHub Pages
 const urlsToCache = [
   './',
