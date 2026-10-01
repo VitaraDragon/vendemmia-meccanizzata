@@ -2265,14 +2265,15 @@
             doc.setFont('helvetica', 'normal');
             
             // Dati campi - formato verticale per leggibilità
+            const altezzaBloccoCampo = 36;
             campi.forEach((campo, idx) => {
                 const chiaveTariffa = `${campo.morfologia}-${campo.tipoPalo}`;
                 const tariffaPerEttaro = tariffeVendemmia[chiaveTariffa];
                 const costoCampo = campo.ettari * tariffaPerEttaro;
                 const dataFormattata = new Date(campo.dataVendemmia).toLocaleDateString('it-IT');
                 
-                // Controlla se serve una nuova pagina
-                if (yPos > 250) {
+                // Controlla se serve una nuova pagina (lascia spazio per tutto il blocco campo)
+                if (yPos + altezzaBloccoCampo > 280) {
                     doc.addPage();
                     yPos = 30;
                 }
@@ -2305,7 +2306,13 @@
                 yPos += 8;
             });
             
-            // Riepilogo costi
+            // Riepilogo costi — nuova pagina se non c'è spazio per titolo + totali + box finale
+            const altezzaRiepilogo = sconto !== 0 ? 70 : 60;
+            if (yPos + altezzaRiepilogo > 280) {
+                doc.addPage();
+                yPos = 30;
+            }
+
             yPos += 10;
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
@@ -2340,10 +2347,10 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(14);
             doc.setFillColor(...colorePrimario);
-            doc.rect(20, yPos - 5, 170, 10, 'F');
+            doc.rect(20, yPos - 5, 170, 12, 'F');
             doc.setTextColor(255, 255, 255);
-            doc.text('COMPENSO TOTALE:', 25, yPos + 2);
-            doc.text(`€${totaleFinale.toFixed(2)}`, 170, yPos + 2);
+            doc.text('COMPENSO TOTALE:', 25, yPos + 3);
+            doc.text(`€${totaleFinale.toFixed(2)}`, 170, yPos + 3);
             
             // Footer
             doc.setTextColor(0, 0, 0);
