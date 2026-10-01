@@ -1,5 +1,5 @@
 // Service Worker per PWA - Vendemmia Meccanizzata
-const CACHE_NAME = 'vendemmia-meccanizzata-v4';
+const CACHE_NAME = 'vendemmia-meccanizzata-v5';
 // Usa path relativi per compatibilità con GitHub Pages
 const urlsToCache = [
   './',

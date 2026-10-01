@@ -852,16 +852,68 @@
             }, 'Caricamento dati bilancio...', { showGlobalLoading: false });
         }
 
+        // Timestamp di un calcolo (per scegliere l'ultimo salvato)
+        function getCalcoloTimestamp(calc) {
+            const created = calc.createdAt;
+            if (created && typeof created.toDate === 'function') {
+                return created.toDate().getTime();
+            }
+            if (created instanceof Date) {
+                return created.getTime();
+            }
+            if (typeof created === 'string' || typeof created === 'number') {
+                const t = new Date(created).getTime();
+                if (!Number.isNaN(t)) return t;
+            }
+
+            const dataV = calc.dataVendemmia;
+            if (dataV && typeof dataV.toDate === 'function') {
+                return dataV.toDate().getTime();
+            }
+            if (dataV instanceof Date) {
+                return dataV.getTime();
+            }
+            if (typeof dataV === 'string' || typeof dataV === 'number') {
+                const t = new Date(dataV).getTime();
+                if (!Number.isNaN(t)) return t;
+            }
+            return 0;
+        }
+
+        // Chiave cliente: preferisci clientId, altrimenti nome normalizzato
+        function getChiaveClienteCalcolo(calc) {
+            if (calc.clientId) return `id_${calc.clientId}`;
+            if (calc.cliente) {
+                const nomeNorm = normalizzaStringaNomeCompleto(calc.cliente);
+                if (nomeNorm) return `nome_${nomeNorm}`;
+            }
+            return `anon_${calc.id || Math.random()}`;
+        }
+
+        // Una vendemmia all'anno per cliente: tieni solo l'ultimo calcolo
+        function tieniUltimoCalcoloPerCliente(calcoli) {
+            const perCliente = new Map();
+            calcoli.forEach(calc => {
+                const key = getChiaveClienteCalcolo(calc);
+                const prev = perCliente.get(key);
+                if (!prev || getCalcoloTimestamp(calc) >= getCalcoloTimestamp(prev)) {
+                    perCliente.set(key, calc);
+                }
+            });
+            return Array.from(perCliente.values());
+        }
+
         // Filtra calcoli per anno
         function filtraPerAnno(anno) {
-            filteredData = allCalculations.filter(calc => {
+            const dellAnno = allCalculations.filter(calc => {
                 const dataVendemmia = typeof calc.dataVendemmia === 'string' 
                     ? new Date(calc.dataVendemmia) 
                     : calc.dataVendemmia;
                 return dataVendemmia && dataVendemmia.getFullYear() === anno;
             });
+            filteredData = tieniUltimoCalcoloPerCliente(dellAnno);
             window.filteredData = filteredData;
-            console.log(`Filtrati ${filteredData.length} calcoli per l'anno ${anno}`);
+            console.log(`Anno ${anno}: ${dellAnno.length} calcoli → ${filteredData.length} clienti (ultimo calcolo ciascuno)`);
         }
 
         // Filtra spese per anno
