@@ -1998,9 +1998,10 @@
                 totaleVendemmia += costoCampo;
 
                 const dataFormattata = new Date(campo.dataVendemmia).toLocaleDateString('it-IT');
+                const tariffaLabel = Number(tariffaPerEttaro || 0).toFixed(2);
                 dettagliCampi += `
                     <div class="result-item">
-                        <span><img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 5px;"> ${campo.nome} (${campo.ettari.toFixed(2)} ha - ${campo.morfologia} + ${campo.tipoPalo}) - 📅 ${dataFormattata}</span>
+                        <span><img src="icons/terreni-icon.png.png" alt="Terreni" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 5px;"> ${campo.nome} (${campo.ettari.toFixed(2)} ha - ${campo.morfologia} + ${campo.tipoPalo} @ €${tariffaLabel}/ha) - 📅 ${dataFormattata}</span>
                         <span>€ ${costoCampo.toFixed(2)}</span>
                     </div>
                 `;
@@ -2278,7 +2279,7 @@
                 
                 // Box per ogni campo
                 doc.setFillColor(248, 249, 250);
-                doc.rect(20, yPos - 4, 170, 20, 'F');
+                doc.rect(20, yPos - 4, 170, 28, 'F');
                 
                 // Testo con grassetto
                 doc.setFont('helvetica', 'bold');
@@ -2294,7 +2295,7 @@
                 yPos += 6;
                 doc.text(`   Data vendemmia: ${dataFormattata}`, 25, yPos);
                 yPos += 6;
-                doc.text(`   Morfologia: ${campo.morfologia} | Palo: ${campo.tipoPalo}`, 25, yPos);
+                doc.text(`   Morfologia: ${campo.morfologia} | Palo: ${campo.tipoPalo} | Tariffa: €${Number(tariffaPerEttaro || 0).toFixed(2)}/ha`, 25, yPos);
                 yPos += 6;
                 doc.setTextColor(139, 69, 19);
                 doc.setFont('helvetica', 'bold');
