@@ -1114,12 +1114,16 @@
                         ricavi: 0,
                         ettari: 0,
                         interventi: 0,
-                        totaleVendemmia: 0
+                        totaleVendemmia: 0,
+                        calcoli: []
                     };
                 }
                 perCliente[key].ricavi += calc.totaleFinale || 0;
                 perCliente[key].totaleVendemmia += calc.totaleVendemmia || 0;
                 perCliente[key].interventi++;
+                if (calc.id && !perCliente[key].calcoli.some(c => c.id === calc.id)) {
+                    perCliente[key].calcoli.push(calc);
+                }
                 if (calc.terreniSelezionati && Array.isArray(calc.terreniSelezionati)) {
                     perCliente[key].ettari += calc.terreniSelezionati.reduce((s, t) => s + (parseFloat(t.ettari) || 0), 0);
                 }
@@ -1135,6 +1139,7 @@
                             <th>Ettari Lavorati</th>
                             <th>Ricavi Totali</th>
                             <th>Tariffa Media €/ha</th>
+                            <th>Report</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1148,6 +1153,13 @@
                 // Calcola tariffa media come totaleVendemmia / ettari
                 const tariffaMedia = dati.ettari > 0 ? (dati.totaleVendemmia / dati.ettari) : 0;
                 
+                const pulsantiPdf = (dati.calcoli || []).map(calc => {
+                    const etichetta = dati.calcoli.length > 1
+                        ? `PDF ${formatDataIt(calc.dataVendemmia)}`
+                        : 'PDF';
+                    return `<button type="button" onclick="stampaPdfRicavo('${escapeHtmlAttr(calc.id)}')" title="Ristampa il report di questo lavoro" style="background: #8B4513; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; margin: 2px;">${etichetta}</button>`;
+                }).join('');
+
                 tableHTML += `
                     <tr>
                         <td data-label="Cliente"><strong>${dati.displayName}</strong></td>
@@ -1155,6 +1167,7 @@
                         <td data-label="Ettari">${dati.ettari.toFixed(2)} ha</td>
                         <td data-label="Ricavi"><strong>€ ${dati.ricavi.toFixed(2)}</strong></td>
                         <td data-label="Tariffa Media">€ ${tariffaMedia.toFixed(2)}</td>
+                        <td data-label="Report">${pulsantiPdf}</td>
                     </tr>
                 `;
                 totaleRicavi += dati.ricavi;
@@ -1176,12 +1189,299 @@
                         <td data-label="Ettari"><strong>${totaleEttari.toFixed(2)} ha</strong></td>
                         <td data-label="Ricavi"><strong>€ ${totaleRicavi.toFixed(2)}</strong></td>
                         <td data-label="Tariffa Media"><strong>€ ${tariffaMediaTotale.toFixed(2)}</strong></td>
+                        <td data-label="Report"></td>
                     </tr>
                 </tbody>
             </table>
             `;
 
             detailsContent.innerHTML = tableHTML;
+        };
+
+        function escapeHtmlAttr(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/'/g, '&#39;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;');
+        }
+
+        function dataComeDate(value) {
+            if (!value) return null;
+            if (typeof value.toDate === 'function') return value.toDate();
+            if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+            if (typeof value === 'object' && typeof value.seconds === 'number') {
+                return new Date(value.seconds * 1000);
+            }
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        function formatDataIt(value) {
+            const data = dataComeDate(value);
+            return data ? data.toLocaleDateString('it-IT') : 'N/A';
+        }
+
+        const DESTINAZIONI_PDF = {
+            sociale: 'Cantina Sociale',
+            intesa: 'Cantina Intesa',
+            colli: 'Cantina Colli Romagnoli',
+            altro: 'Altro',
+            personalizzata: 'Personalizzata'
+        };
+
+        const TARIFFE_VENDEMMIA_DEFAULT = {
+            'montagna-ferro': 120,
+            'montagna-legno': 110,
+            'montagna-cemento': 130,
+            'collina-ferro': 100,
+            'collina-legno': 90,
+            'collina-cemento': 110,
+            'pianura-ferro': 80,
+            'pianura-legno': 70,
+            'pianura-cemento': 90,
+            'personalizzata': 100
+        };
+
+        function tariffeVendemmiaAttive() {
+            if (tariffeVendemmia && Object.keys(tariffeVendemmia).length > 0) {
+                return tariffeVendemmia;
+            }
+            return TARIFFE_VENDEMMIA_DEFAULT;
+        }
+
+        function tariffaCampo(campo, tariffe) {
+            const chiave = `${campo.morfologia}-${campo.tipoPalo}`;
+            const diretta = Number(tariffe[chiave]);
+            if (Number.isFinite(diretta)) return diretta;
+            const personalizzata = Number(tariffe.personalizzata);
+            return Number.isFinite(personalizzata) ? personalizzata : 0;
+        }
+
+        function campiDelCalcolo(calcolo) {
+            const fonte = (Array.isArray(calcolo.campi) && calcolo.campi.length > 0)
+                ? calcolo.campi
+                : (Array.isArray(calcolo.terreniSelezionati) ? calcolo.terreniSelezionati : []);
+
+            return fonte.map(campo => ({
+                nome: campo.nome || 'Campo',
+                ettari: Number(campo.ettari) || 0,
+                morfologia: campo.morfologia || 'N/A',
+                tipoPalo: campo.tipoPalo || 'N/A',
+                dataVendemmia: campo.dataVendemmia || calcolo.dataVendemmia
+            }));
+        }
+
+        // Costi di riga: se le tariffe attuali ricostruiscono il totale salvato, sono quelle del calcolo.
+        // Altrimenti il totale salvato viene ripartito, così il PDF torna con il compenso del bilancio.
+        function costiCampiPdf(campi, totaleVendemmia) {
+            const tariffe = tariffeVendemmiaAttive();
+            const grezzi = campi.map(campo => {
+                const tariffa = tariffaCampo(campo, tariffe);
+                return {
+                    ettari: campo.ettari,
+                    tariffa,
+                    costo: campo.ettari * tariffa
+                };
+            });
+
+            const somma = grezzi.reduce((sum, riga) => sum + riga.costo, 0);
+            const target = Number(totaleVendemmia) || 0;
+            if (Math.abs(somma - target) <= 0.02) {
+                return grezzi;
+            }
+
+            const pesi = grezzi.map(riga => (riga.costo > 0 ? riga.costo : riga.ettari));
+            const sommaPesi = pesi.reduce((sum, peso) => sum + peso, 0);
+            if (sommaPesi <= 0) {
+                const ciascuno = campi.length > 0 ? target / campi.length : 0;
+                return grezzi.map(riga => ({
+                    tariffa: riga.ettari > 0 ? ciascuno / riga.ettari : 0,
+                    costo: ciascuno
+                }));
+            }
+
+            let accumulato = 0;
+            return grezzi.map((riga, index) => {
+                let costo;
+                if (index === grezzi.length - 1) {
+                    costo = Math.round((target - accumulato) * 100) / 100;
+                } else {
+                    costo = Math.round((target * pesi[index] / sommaPesi) * 100) / 100;
+                    accumulato += costo;
+                }
+                return {
+                    tariffa: riga.ettari > 0 ? costo / riga.ettari : 0,
+                    costo
+                };
+            });
+        }
+
+        function etichettaDestinazione(valore) {
+            if (!valore) return 'N/A';
+            return DESTINAZIONI_PDF[valore] || valore;
+        }
+
+        window.stampaPdfRicavo = function(calcoloId) {
+            const calcolo = allCalculations.find(c => c.id === calcoloId);
+            if (!calcolo) {
+                showError('Calcolo non trovato');
+                return;
+            }
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                showError('Libreria PDF non disponibile');
+                return;
+            }
+
+            try {
+                const cliente = calcolo.cliente || 'Cliente';
+                const sconto = Number(calcolo.sconto) || 0;
+                const quintali = Number(calcolo.quintali) || 0;
+                const note = calcolo.note || '';
+                const totaleVendemmia = Number(calcolo.totaleVendemmia) || 0;
+                const totaleTrasporto = Number(calcolo.totaleTrasporto) || 0;
+                const totaleFinale = Number.isFinite(Number(calcolo.totaleFinale))
+                    ? Number(calcolo.totaleFinale)
+                    : totaleVendemmia + totaleTrasporto + sconto;
+                const campi = campiDelCalcolo(calcolo);
+                const costi = costiCampiPdf(campi, totaleVendemmia);
+                const tariffaTrasporto = quintali > 0 ? totaleTrasporto / quintali : 0;
+                const quintaliTesto = Number.isInteger(quintali) ? String(quintali) : String(quintali);
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const colorePrimario = [139, 69, 19];
+
+                doc.setFillColor(...colorePrimario);
+                doc.rect(0, 0, 210, 35, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('REPORT VENDEMMIA MECCANIZZATA', 105, 18, { align: 'center' });
+                doc.setFontSize(10);
+                doc.text(`Data generazione: ${new Date().toLocaleDateString('it-IT')}`, 105, 28, { align: 'center' });
+
+                doc.setTextColor(0, 0, 0);
+                let yPos = 50;
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text('INFORMAZIONI CLIENTE', 20, yPos);
+
+                yPos += 10;
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Cliente: ${cliente}`, 20, yPos);
+                yPos += 8;
+                doc.text(`Data Calcolo: ${formatDataIt(calcolo.dataVendemmia)}`, 20, yPos);
+                yPos += 8;
+                doc.text(`Destinazione: ${etichettaDestinazione(calcolo.destinazione)}`, 20, yPos);
+                yPos += 8;
+                doc.text(`Quintali Trasportati: ${quintaliTesto}`, 20, yPos);
+
+                if (note) {
+                    yPos += 8;
+                    const righeNote = doc.splitTextToSize(`Note: ${note}`, 170);
+                    doc.text(righeNote, 20, yPos);
+                    yPos += (righeNote.length - 1) * 6;
+                }
+
+                if (sconto !== 0) {
+                    yPos += 8;
+                    doc.text(`Sconto/Maggiorazioni: ${sconto > 0 ? '+' : ''}€${sconto.toFixed(2)}`, 20, yPos);
+                }
+
+                yPos += 15;
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text('DETTAGLIO CAMPI', 20, yPos);
+                yPos += 10;
+                doc.setFont('helvetica', 'normal');
+
+                const altezzaBloccoCampo = 36;
+                campi.forEach((campo, idx) => {
+                    const costoCampo = costi[idx] ? costi[idx].costo : 0;
+                    const tariffaPerEttaro = costi[idx] ? costi[idx].tariffa : 0;
+
+                    if (yPos + altezzaBloccoCampo > 280) {
+                        doc.addPage();
+                        yPos = 30;
+                    }
+
+                    doc.setFillColor(248, 249, 250);
+                    doc.rect(20, yPos - 4, 170, 28, 'F');
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.text(`${idx + 1}. ${campo.nome}`, 25, yPos + 4);
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    yPos += 8;
+                    doc.text(`   Superficie: ${campo.ettari.toFixed(2)} ha`, 25, yPos);
+                    yPos += 6;
+                    doc.text(`   Data vendemmia: ${formatDataIt(campo.dataVendemmia)}`, 25, yPos);
+                    yPos += 6;
+                    doc.text(`   Morfologia: ${campo.morfologia} | Palo: ${campo.tipoPalo} | Tariffa: €${Number(tariffaPerEttaro || 0).toFixed(2)}/ha`, 25, yPos);
+                    yPos += 6;
+                    doc.setTextColor(139, 69, 19);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`   Costo: €${costoCampo.toFixed(2)}`, 25, yPos);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont('helvetica', 'normal');
+                    yPos += 8;
+                });
+
+                const altezzaRiepilogo = sconto !== 0 ? 70 : 60;
+                if (yPos + altezzaRiepilogo > 280) {
+                    doc.addPage();
+                    yPos = 30;
+                }
+
+                yPos += 10;
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.setDrawColor(...colorePrimario);
+                doc.setLineWidth(0.5);
+                doc.line(20, yPos, 190, yPos);
+                yPos += 8;
+                doc.text('RIEPILOGO COSTI', 20, yPos);
+                yPos += 10;
+
+                doc.setFont('helvetica', 'normal');
+                doc.text('Totale Vendemmia:', 20, yPos);
+                doc.text(`€${totaleVendemmia.toFixed(2)}`, 170, yPos);
+                yPos += 8;
+
+                const rigaTrasporto = quintali > 0
+                    ? `Totale Trasporto (${quintaliTesto} qli × €${tariffaTrasporto.toFixed(2)}/qli):`
+                    : 'Totale Trasporto:';
+                doc.text(rigaTrasporto, 20, yPos);
+                doc.text(`€${totaleTrasporto.toFixed(2)}`, 170, yPos);
+                yPos += 8;
+
+                if (sconto !== 0) {
+                    doc.text('Sconto/Maggiorazioni:', 20, yPos);
+                    doc.setTextColor(sconto < 0 ? 220 : 40, sconto < 0 ? 53 : 167, sconto < 0 ? 69 : 40);
+                    doc.text(`${sconto > 0 ? '+' : ''}€${sconto.toFixed(2)}`, 170, yPos);
+                    doc.setTextColor(0, 0, 0);
+                    yPos += 8;
+                }
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.setFillColor(...colorePrimario);
+                doc.rect(20, yPos - 5, 170, 12, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.text('COMPENSO TOTALE:', 25, yPos + 3);
+                doc.text(`€${totaleFinale.toFixed(2)}`, 170, yPos + 3);
+
+                const nomeFile = `Report_Vendemmia_${cliente.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(nomeFile);
+                showSuccess('PDF generato con successo!');
+            } catch (error) {
+                showError('Errore durante la generazione del PDF: ' + error.message);
+                console.error('PDF generation error:', error);
+            }
         };
 
         // ========== GESTIONE SPESE ==========
